@@ -1,8 +1,116 @@
 """Dependencias HTTP compartidas."""
 
-from fastapi import Request
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from enum import StrEnum
+from types import MappingProxyType
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import Depends, Header, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from hys_api.core.errors import ProblemException, ProblemFieldError
+from hys_api.db.session import get_session
+from hys_api.db.tenant import AuthorizationContext, apply_authorization_context
+
+PILOT_ORGANIZATION_ID = UUID("00000000-0000-4000-8000-000000000001")
+
+
+class PilotRole(StrEnum):
+    """Roles acotados del recorrido sintético del piloto."""
+
+    AUDITOR = "AUDITOR"
+    TECNICO = "TECNICO"
+    RESPONSABLE_HYS = "RESPONSABLE_HYS"
+
+
+@dataclass(frozen=True, slots=True)
+class PilotActor:
+    """Identidad sintética fija; no reemplaza la autenticación de producción."""
+
+    key: str
+    id: UUID
+    role: PilotRole
+
+
+PILOT_ACTORS = MappingProxyType(
+    {
+        "auditor": PilotActor(
+            key="auditor",
+            id=UUID("00000000-0000-4000-8000-000000000001"),
+            role=PilotRole.AUDITOR,
+        ),
+        "tecnico": PilotActor(
+            key="tecnico",
+            id=UUID("00000000-0000-4000-8000-000000000002"),
+            role=PilotRole.TECNICO,
+        ),
+        "responsable": PilotActor(
+            key="responsable",
+            id=UUID("00000000-0000-4000-8000-000000000003"),
+            role=PilotRole.RESPONSABLE_HYS,
+        ),
+        "responsable-suplente": PilotActor(
+            key="responsable-suplente",
+            id=UUID("00000000-0000-4000-8000-000000000004"),
+            role=PilotRole.RESPONSABLE_HYS,
+        ),
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PilotRequestContext:
+    """Actor y sesión tenant-aware compartidos por un request del piloto."""
+
+    actor: PilotActor
+    session: AsyncSession
+
+
+async def get_pilot_actor(
+    pilot_actor_key: Annotated[str | None, Header(alias="X-Pilot-Actor")] = None,
+) -> PilotActor:
+    """Resuelve únicamente las identidades sintéticas permitidas para el piloto."""
+
+    actor = PILOT_ACTORS.get(pilot_actor_key or "")
+    if actor is None:
+        raise ProblemException(
+            status=401,
+            code="pilot_authentication_required",
+            title="Se requiere identidad del piloto",
+            detail="Indicá un actor sintético válido mediante X-Pilot-Actor.",
+        )
+    return actor
+
+
+async def get_pilot_context(
+    actor: Annotated[PilotActor, Depends(get_pilot_actor)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AsyncIterator[PilotRequestContext]:
+    """Abre la UoW y fija el tenant mediante ``SET LOCAL`` antes de consultar."""
+
+    async with session.begin():
+        await apply_authorization_context(
+            session,
+            AuthorizationContext(
+                organization_id=PILOT_ORGANIZATION_ID,
+                actor_id=actor.id,
+            ),
+        )
+        yield PilotRequestContext(actor=actor, session=session)
+
+
+def require_pilot_role(actor: PilotActor, *allowed_roles: PilotRole) -> None:
+    """Aplica los permisos mínimos de servidor del recorrido sintético."""
+
+    if actor.role not in allowed_roles:
+        raise ProblemException(
+            status=403,
+            code="pilot_permission_denied",
+            title="Acceso denegado",
+            detail="El rol sintético no permite realizar esta acción.",
+        )
 
 
 async def reject_query_parameters(request: Request) -> None:

@@ -1,6 +1,57 @@
 """Importador explícito de modelos para Alembic."""
 
 from hys_api.modules.organizations.models import Organization
+from hys_api.modules.pilot.models import (
+    Audit,
+    AuditControl,
+    Contractor,
+    ContractorDocument,
+    ControlCatalogVersion,
+    Correction,
+    Document,
+    DocumentVersion,
+    Finding,
+    FindingControl,
+    FindingEvent,
+    Machine,
+    MachineDocument,
+    MachineInspection,
+    MachineWorksiteAssignment,
+    Person,
+    PersonAssignment,
+    PersonDocument,
+    SeverityCatalogVersion,
+    Verification,
+    WorksiteContractor,
+    WorksiteDocument,
+    WorksiteStage,
+)
 from hys_api.modules.worksites.models import Worksite
 
-__all__ = ["Organization", "Worksite"]
+__all__ = [
+    "Audit",
+    "AuditControl",
+    "Contractor",
+    "ContractorDocument",
+    "ControlCatalogVersion",
+    "Correction",
+    "Document",
+    "DocumentVersion",
+    "Finding",
+    "FindingControl",
+    "FindingEvent",
+    "Machine",
+    "MachineDocument",
+    "MachineInspection",
+    "MachineWorksiteAssignment",
+    "Organization",
+    "Person",
+    "PersonAssignment",
+    "PersonDocument",
+    "SeverityCatalogVersion",
+    "Verification",
+    "Worksite",
+    "WorksiteContractor",
+    "WorksiteDocument",
+    "WorksiteStage",
+]

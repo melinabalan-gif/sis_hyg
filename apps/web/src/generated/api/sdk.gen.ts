@@ -15,6 +15,60 @@ import type {
   HealthReadyData,
   HealthReadyErrors,
   HealthReadyResponses,
+  PilotCreateAuditControlData,
+  PilotCreateAuditControlErrors,
+  PilotCreateAuditControlResponses,
+  PilotCreateFindingCorrectionData,
+  PilotCreateFindingCorrectionErrors,
+  PilotCreateFindingCorrectionResponses,
+  PilotCreateMachineInspectionData,
+  PilotCreateMachineInspectionErrors,
+  PilotCreateMachineInspectionResponses,
+  PilotCreateWorksiteContractorData,
+  PilotCreateWorksiteContractorErrors,
+  PilotCreateWorksiteContractorResponses,
+  PilotCreateWorksiteData,
+  PilotCreateWorksiteDocumentData,
+  PilotCreateWorksiteDocumentErrors,
+  PilotCreateWorksiteDocumentResponses,
+  PilotCreateWorksiteDocumentVersionData,
+  PilotCreateWorksiteDocumentVersionErrors,
+  PilotCreateWorksiteDocumentVersionResponses,
+  PilotCreateWorksiteErrors,
+  PilotCreateWorksiteMachineData,
+  PilotCreateWorksiteMachineErrors,
+  PilotCreateWorksiteMachineResponses,
+  PilotCreateWorksitePersonData,
+  PilotCreateWorksitePersonErrors,
+  PilotCreateWorksitePersonResponses,
+  PilotCreateWorksiteResponses,
+  PilotCreateWorksiteStageData,
+  PilotCreateWorksiteStageErrors,
+  PilotCreateWorksiteStageResponses,
+  PilotDownloadWorksiteReportData,
+  PilotDownloadWorksiteReportErrors,
+  PilotDownloadWorksiteReportResponses,
+  PilotFinalizeAuditData,
+  PilotFinalizeAuditErrors,
+  PilotFinalizeAuditResponses,
+  PilotGetFindingTimelineData,
+  PilotGetFindingTimelineErrors,
+  PilotGetFindingTimelineResponses,
+  PilotGetWorksiteData,
+  PilotGetWorksiteErrors,
+  PilotGetWorksiteResponses,
+  PilotListWorksitesData,
+  PilotListWorksitesErrors,
+  PilotListWorksitesResponses,
+  PilotStartWorksiteAuditData,
+  PilotStartWorksiteAuditErrors,
+  PilotStartWorksiteAuditResponses,
+  PilotSubmitFindingVerificationData,
+  PilotSubmitFindingVerificationErrors,
+  PilotSubmitFindingVerificationResponses,
+  PilotVerifyFindingData,
+  PilotVerifyFindingErrors,
+  PilotVerifyFindingResponses,
 } from "./types.gen";
 
 export type Options<
@@ -34,6 +88,127 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Create Audit Control
+ */
+export const pilotCreateAuditControl = <ThrowOnError extends boolean = false>(
+  options: Options<PilotCreateAuditControlData, ThrowOnError>,
+): RequestResult<
+  PilotCreateAuditControlResponses,
+  PilotCreateAuditControlErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateAuditControlResponses,
+    PilotCreateAuditControlErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/audits/{audit_id}/controls",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Finalize Audit
+ */
+export const pilotFinalizeAudit = <ThrowOnError extends boolean = false>(
+  options: Options<PilotFinalizeAuditData, ThrowOnError>,
+): RequestResult<
+  PilotFinalizeAuditResponses,
+  PilotFinalizeAuditErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotFinalizeAuditResponses,
+    PilotFinalizeAuditErrors,
+    ThrowOnError
+  >({ url: "/api/v1/audits/{audit_id}/finalize", ...options });
+
+/**
+ * Create Finding Correction
+ */
+export const pilotCreateFindingCorrection = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateFindingCorrectionData, ThrowOnError>,
+): RequestResult<
+  PilotCreateFindingCorrectionResponses,
+  PilotCreateFindingCorrectionErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateFindingCorrectionResponses,
+    PilotCreateFindingCorrectionErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/findings/{finding_id}/corrections",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Submit Finding Verification
+ */
+export const pilotSubmitFindingVerification = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotSubmitFindingVerificationData, ThrowOnError>,
+): RequestResult<
+  PilotSubmitFindingVerificationResponses,
+  PilotSubmitFindingVerificationErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotSubmitFindingVerificationResponses,
+    PilotSubmitFindingVerificationErrors,
+    ThrowOnError
+  >({ url: "/api/v1/findings/{finding_id}/submit-verification", ...options });
+
+/**
+ * Get Finding Timeline
+ */
+export const pilotGetFindingTimeline = <ThrowOnError extends boolean = false>(
+  options: Options<PilotGetFindingTimelineData, ThrowOnError>,
+): RequestResult<
+  PilotGetFindingTimelineResponses,
+  PilotGetFindingTimelineErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    PilotGetFindingTimelineResponses,
+    PilotGetFindingTimelineErrors,
+    ThrowOnError
+  >({ url: "/api/v1/findings/{finding_id}/timeline", ...options });
+
+/**
+ * Verify Finding
+ */
+export const pilotVerifyFinding = <ThrowOnError extends boolean = false>(
+  options: Options<PilotVerifyFindingData, ThrowOnError>,
+): RequestResult<
+  PilotVerifyFindingResponses,
+  PilotVerifyFindingErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotVerifyFindingResponses,
+    PilotVerifyFindingErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/findings/{finding_id}/verifications",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
 
 /**
  * Verifica que el proceso responda
@@ -58,3 +233,263 @@ export const healthReady = <ThrowOnError extends boolean = false>(
     HealthReadyErrors,
     ThrowOnError
   >({ url: "/api/v1/health/ready", ...options });
+
+/**
+ * List Worksites
+ */
+export const pilotListWorksites = <ThrowOnError extends boolean = false>(
+  options?: Options<PilotListWorksitesData, ThrowOnError>,
+): RequestResult<
+  PilotListWorksitesResponses,
+  PilotListWorksitesErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    PilotListWorksitesResponses,
+    PilotListWorksitesErrors,
+    ThrowOnError
+  >({ url: "/api/v1/worksites", ...options });
+
+/**
+ * Create Worksite
+ */
+export const pilotCreateWorksite = <ThrowOnError extends boolean = false>(
+  options: Options<PilotCreateWorksiteData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteResponses,
+  PilotCreateWorksiteErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteResponses,
+    PilotCreateWorksiteErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Get Worksite
+ */
+export const pilotGetWorksite = <ThrowOnError extends boolean = false>(
+  options: Options<PilotGetWorksiteData, ThrowOnError>,
+): RequestResult<
+  PilotGetWorksiteResponses,
+  PilotGetWorksiteErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    PilotGetWorksiteResponses,
+    PilotGetWorksiteErrors,
+    ThrowOnError
+  >({ url: "/api/v1/worksites/{worksite_id}", ...options });
+
+/**
+ * Start Worksite Audit
+ */
+export const pilotStartWorksiteAudit = <ThrowOnError extends boolean = false>(
+  options: Options<PilotStartWorksiteAuditData, ThrowOnError>,
+): RequestResult<
+  PilotStartWorksiteAuditResponses,
+  PilotStartWorksiteAuditErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotStartWorksiteAuditResponses,
+    PilotStartWorksiteAuditErrors,
+    ThrowOnError
+  >({ url: "/api/v1/worksites/{worksite_id}/audits", ...options });
+
+/**
+ * Create Worksite Contractor
+ */
+export const pilotCreateWorksiteContractor = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateWorksiteContractorData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteContractorResponses,
+  PilotCreateWorksiteContractorErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteContractorResponses,
+    PilotCreateWorksiteContractorErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/contractors",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Create Worksite Document
+ */
+export const pilotCreateWorksiteDocument = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateWorksiteDocumentData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteDocumentResponses,
+  PilotCreateWorksiteDocumentErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteDocumentResponses,
+    PilotCreateWorksiteDocumentErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/documents",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Create Worksite Document Version
+ */
+export const pilotCreateWorksiteDocumentVersion = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateWorksiteDocumentVersionData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteDocumentVersionResponses,
+  PilotCreateWorksiteDocumentVersionErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteDocumentVersionResponses,
+    PilotCreateWorksiteDocumentVersionErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/documents/{document_id}/versions",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Create Worksite Machine
+ */
+export const pilotCreateWorksiteMachine = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateWorksiteMachineData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteMachineResponses,
+  PilotCreateWorksiteMachineErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteMachineResponses,
+    PilotCreateWorksiteMachineErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/machines",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Create Machine Inspection
+ */
+export const pilotCreateMachineInspection = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateMachineInspectionData, ThrowOnError>,
+): RequestResult<
+  PilotCreateMachineInspectionResponses,
+  PilotCreateMachineInspectionErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateMachineInspectionResponses,
+    PilotCreateMachineInspectionErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/machines/{machine_id}/inspections",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Create Worksite Person
+ */
+export const pilotCreateWorksitePerson = <ThrowOnError extends boolean = false>(
+  options: Options<PilotCreateWorksitePersonData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksitePersonResponses,
+  PilotCreateWorksitePersonErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksitePersonResponses,
+    PilotCreateWorksitePersonErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/people",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Download Worksite Report
+ */
+export const pilotDownloadWorksiteReport = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotDownloadWorksiteReportData, ThrowOnError>,
+): RequestResult<
+  PilotDownloadWorksiteReportResponses,
+  PilotDownloadWorksiteReportErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    PilotDownloadWorksiteReportResponses,
+    PilotDownloadWorksiteReportErrors,
+    ThrowOnError
+  >({ url: "/api/v1/worksites/{worksite_id}/report.pdf", ...options });
+
+/**
+ * Create Worksite Stage
+ */
+export const pilotCreateWorksiteStage = <ThrowOnError extends boolean = false>(
+  options: Options<PilotCreateWorksiteStageData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteStageResponses,
+  PilotCreateWorksiteStageErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteStageResponses,
+    PilotCreateWorksiteStageErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/stages",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });

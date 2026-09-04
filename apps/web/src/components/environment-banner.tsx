@@ -1,5 +1,5 @@
 const PROTOTYPE_NOTICE =
-  "PROTOTIPO · DATOS 100 % SINTÉTICOS · SIN VALIDEZ OPERATIVA";
+  "PILOTO FUNCIONAL · DATOS 100 % SINTÉTICOS · NO APTO PARA PRODUCCIÓN";
 
 export function EnvironmentBanner() {
   return (

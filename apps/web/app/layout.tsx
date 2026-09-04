@@ -9,27 +9,27 @@ const publicOrigin = new URL(
 
 export const metadata: Metadata = {
   metadataBase: publicOrigin,
-  title: "H&S Gestión · Prototipo sintético",
+  title: "H&S Gestión · Piloto funcional",
   description:
-    "Base segura y trazable para la gestión de Higiene y Seguridad en obras civiles.",
+    "Piloto funcional para gestionar obras, legajos, auditorías y desvíos con datos sintéticos.",
   openGraph: {
     type: "website",
     locale: "es_AR",
     title: "H&S Gestión",
-    description: "Una base segura para gestionar H&S",
+    description: "Primer flujo vertical utilizable de H&S Gestión",
     images: [
       {
         url: "/og.png",
         width: 1730,
         height: 909,
-        alt: "H&S Gestión · Una base segura para gestionar H&S",
+        alt: "H&S Gestión · Piloto funcional",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     title: "H&S Gestión",
-    description: "Una base segura para gestionar H&S",
+    description: "Primer flujo vertical utilizable de H&S Gestión",
     images: ["/og.png"],
   },
   robots: { index: false, follow: false },

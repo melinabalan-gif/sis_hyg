@@ -5,6 +5,581 @@ export type ClientOptions = {
 };
 
 /**
+ * AuditCatalogControlView
+ */
+export type AuditCatalogControlView = {
+  /**
+   * Catalog Code
+   */
+  catalog_code: string;
+  /**
+   * Catalog Title
+   */
+  catalog_title: string;
+};
+
+/**
+ * AuditControlCreate
+ */
+export type AuditControlCreate = {
+  /**
+   * Catalog Code
+   */
+  catalog_code: string;
+  /**
+   * Finding Description
+   */
+  finding_description?: string | null;
+  /**
+   * Reason
+   */
+  reason?: string | null;
+  result: ControlResult;
+  /**
+   * Severity Code
+   */
+  severity_code?: string | null;
+};
+
+/**
+ * AuditControlMutationResponse
+ */
+export type AuditControlMutationResponse = {
+  control: AuditControlView;
+  finding: FindingView | null;
+};
+
+/**
+ * AuditControlView
+ */
+export type AuditControlView = {
+  /**
+   * Catalog Code
+   */
+  catalog_code: string;
+  /**
+   * Catalog Title
+   */
+  catalog_title: string;
+  /**
+   * Finding Id
+   */
+  finding_id: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Reason
+   */
+  reason: string | null;
+  result: ControlResult;
+};
+
+/**
+ * AuditStatus
+ */
+export type AuditStatus = "EN_CURSO" | "FINALIZADA";
+
+/**
+ * AuditView
+ */
+export type AuditView = {
+  /**
+   * Author Id
+   */
+  author_id: string;
+  /**
+   * Available Controls
+   */
+  available_controls?: Array<AuditCatalogControlView>;
+  /**
+   * Controls
+   */
+  controls?: Array<AuditControlView>;
+  /**
+   * Editor Id
+   */
+  editor_id: string;
+  /**
+   * Finalized At
+   */
+  finalized_at: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Started At
+   */
+  started_at: string;
+  status: AuditStatus;
+};
+
+/**
+ * ContractorCreate
+ */
+export type ContractorCreate = {
+  /**
+   * Ended On
+   */
+  ended_on?: string | null;
+  /**
+   * Legal Name
+   */
+  legal_name: string;
+  /**
+   * Started On
+   */
+  started_on?: string | null;
+  /**
+   * Trade
+   */
+  trade: string;
+};
+
+/**
+ * ContractorView
+ */
+export type ContractorView = {
+  /**
+   * Assignment Id
+   */
+  assignment_id: string;
+  /**
+   * Ended On
+   */
+  ended_on: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Legal Name
+   */
+  legal_name: string;
+  /**
+   * Started On
+   */
+  started_on: string;
+  /**
+   * Trade
+   */
+  trade: string;
+};
+
+/**
+ * ControlExclusions
+ */
+export type ControlExclusions = {
+  /**
+   * No Aplica
+   */
+  no_aplica: number;
+  /**
+   * No Verificado
+   */
+  no_verificado: number;
+};
+
+/**
+ * ControlMetrics
+ */
+export type ControlMetrics = {
+  /**
+   * Audit Id
+   */
+  audit_id: string | null;
+  /**
+   * Denominator
+   */
+  denominator: number;
+  excluded: ControlExclusions;
+  /**
+   * Numerator
+   */
+  numerator: number;
+  /**
+   * Ratio
+   */
+  ratio: number | null;
+};
+
+/**
+ * ControlResult
+ */
+export type ControlResult =
+  "CUMPLE" | "NO_CUMPLE" | "NO_APLICA" | "NO_VERIFICADO";
+
+/**
+ * CorrectionCreate
+ */
+export type CorrectionCreate = {
+  /**
+   * Description
+   */
+  description: string;
+  /**
+   * Evidence Note
+   */
+  evidence_note: string;
+};
+
+/**
+ * CorrectionView
+ */
+export type CorrectionView = {
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Created By
+   */
+  created_by: string;
+  /**
+   * Description
+   */
+  description: string;
+  /**
+   * Evidence Note
+   */
+  evidence_note: string;
+  /**
+   * Id
+   */
+  id: string;
+};
+
+/**
+ * DocumentCreate
+ */
+export type DocumentCreate = {
+  /**
+   * Document Type
+   */
+  document_type: string;
+  /**
+   * Expires On
+   */
+  expires_on?: string | null;
+  /**
+   * Notes
+   */
+  notes?: string | null;
+  review_status?: DocumentReviewStatus;
+  /**
+   * Subject Id
+   */
+  subject_id: string;
+  subject_kind: SubjectKind;
+  /**
+   * Title
+   */
+  title: string;
+  /**
+   * Valid From
+   */
+  valid_from?: string | null;
+};
+
+/**
+ * DocumentDisplayStatus
+ */
+export type DocumentDisplayStatus =
+  "PENDIENTE" | "RECHAZADO" | "FALTANTE" | "VENCIDO" | "POR_VENCER" | "VIGENTE";
+
+/**
+ * DocumentMetrics
+ */
+export type DocumentMetrics = {
+  /**
+   * By Status
+   */
+  by_status: {
+    [key in DocumentDisplayStatus]?: number;
+  };
+  /**
+   * Total
+   */
+  total: number;
+};
+
+/**
+ * DocumentReviewStatus
+ */
+export type DocumentReviewStatus = "PENDIENTE" | "APROBADO" | "RECHAZADO";
+
+/**
+ * DocumentVersionCreate
+ */
+export type DocumentVersionCreate = {
+  /**
+   * Document Type
+   */
+  document_type: string;
+  /**
+   * Expires On
+   */
+  expires_on?: string | null;
+  /**
+   * Notes
+   */
+  notes?: string | null;
+  review_status?: DocumentReviewStatus;
+  /**
+   * Title
+   */
+  title: string;
+  /**
+   * Valid From
+   */
+  valid_from?: string | null;
+};
+
+/**
+ * DocumentVersionView
+ */
+export type DocumentVersionView = {
+  /**
+   * Actor Id
+   */
+  actor_id: string;
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Document Type
+   */
+  document_type: string;
+  /**
+   * Expires On
+   */
+  expires_on: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Notes
+   */
+  notes: string | null;
+  review_status: DocumentReviewStatus;
+  /**
+   * Title
+   */
+  title: string;
+  /**
+   * Valid From
+   */
+  valid_from: string | null;
+  /**
+   * Version Number
+   */
+  version_number: number;
+};
+
+/**
+ * DocumentView
+ */
+export type DocumentView = {
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Document Type
+   */
+  document_type: string;
+  /**
+   * Expires On
+   */
+  expires_on: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Notes
+   */
+  notes: string | null;
+  review_status: DocumentReviewStatus;
+  status: DocumentDisplayStatus;
+  /**
+   * Subject Id
+   */
+  subject_id: string;
+  subject_kind: SubjectKind;
+  /**
+   * Subject Name
+   */
+  subject_name: string;
+  /**
+   * Title
+   */
+  title: string;
+  /**
+   * Valid From
+   */
+  valid_from: string | null;
+  /**
+   * Version
+   */
+  version: number;
+  /**
+   * Versions
+   */
+  versions?: Array<DocumentVersionView>;
+};
+
+/**
+ * FindingEventView
+ */
+export type FindingEventView = {
+  /**
+   * Actor Id
+   */
+  actor_id: string;
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Detail
+   */
+  detail: string | null;
+  /**
+   * Event Type
+   */
+  event_type: string;
+  from_status: FindingStatus | null;
+  /**
+   * Id
+   */
+  id: string;
+  to_status: FindingStatus;
+};
+
+/**
+ * FindingMetrics
+ */
+export type FindingMetrics = {
+  /**
+   * By Status
+   */
+  by_status: {
+    [key in FindingStatus]?: number;
+  };
+  /**
+   * Overdue
+   */
+  overdue: number;
+  /**
+   * Total
+   */
+  total: number;
+};
+
+/**
+ * FindingStatus
+ */
+export type FindingStatus =
+  "ABIERTO" | "EN_CORRECCION" | "PENDIENTE_VERIFICACION" | "CERRADO";
+
+/**
+ * FindingTimeline
+ */
+export type FindingTimeline = {
+  /**
+   * Events
+   */
+  events: Array<FindingEventView>;
+  /**
+   * Finding Id
+   */
+  finding_id: string;
+};
+
+/**
+ * FindingView
+ */
+export type FindingView = {
+  /**
+   * Audit Control Id
+   */
+  audit_control_id: string;
+  /**
+   * Audit Id
+   */
+  audit_id: string;
+  /**
+   * Closed At
+   */
+  closed_at: string | null;
+  /**
+   * Corrections
+   */
+  corrections?: Array<CorrectionView>;
+  /**
+   * Created By
+   */
+  created_by: string;
+  /**
+   * Description
+   */
+  description: string;
+  /**
+   * Due At
+   */
+  due_at: string;
+  /**
+   * Events
+   */
+  events?: Array<FindingEventView>;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Overdue
+   */
+  overdue: boolean;
+  /**
+   * Severity Code
+   */
+  severity_code: string;
+  status: FindingStatus;
+  /**
+   * Title
+   */
+  title: string;
+  /**
+   * Verifications
+   */
+  verifications?: Array<VerificationView>;
+};
+
+/**
+ * LatestAuditView
+ */
+export type LatestAuditView = {
+  /**
+   * Finalized At
+   */
+  finalized_at: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Started At
+   */
+  started_at: string;
+  status: AuditStatus;
+};
+
+/**
  * LiveResponse
  */
 export type LiveResponse = {
@@ -20,6 +595,204 @@ export type LiveResponse = {
    * Version
    */
   version: string;
+};
+
+/**
+ * MachineCreate
+ */
+export type MachineCreate = {
+  /**
+   * Contractor Id
+   */
+  contractor_id?: string | null;
+  /**
+   * Description
+   */
+  description: string;
+  /**
+   * Ended On
+   */
+  ended_on?: string | null;
+  /**
+   * Internal Code
+   */
+  internal_code: string;
+  /**
+   * Reason
+   */
+  reason: string;
+  /**
+   * Started On
+   */
+  started_on?: string | null;
+  status: MachineStatus;
+};
+
+/**
+ * MachineInspectionCreate
+ */
+export type MachineInspectionCreate = {
+  /**
+   * Reason
+   */
+  reason: string;
+  resulting_status: MachineStatus;
+};
+
+/**
+ * MachineInspectionView
+ */
+export type MachineInspectionView = {
+  /**
+   * Actor Id
+   */
+  actor_id: string;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Inspected At
+   */
+  inspected_at: string;
+  /**
+   * Reason
+   */
+  reason: string;
+  resulting_status: MachineStatus;
+};
+
+/**
+ * MachineMetrics
+ */
+export type MachineMetrics = {
+  /**
+   * By Status
+   */
+  by_status: {
+    [key in MachineStatus]?: number;
+  };
+  /**
+   * Total
+   */
+  total: number;
+};
+
+/**
+ * MachineStatus
+ */
+export type MachineStatus =
+  "OPERATIVA" | "CON_OBSERVACIONES" | "FUERA_DE_SERVICIO";
+
+/**
+ * MachineView
+ */
+export type MachineView = {
+  /**
+   * Assignment Id
+   */
+  assignment_id: string;
+  /**
+   * Contractor Id
+   */
+  contractor_id: string | null;
+  /**
+   * Description
+   */
+  description: string;
+  /**
+   * Ended On
+   */
+  ended_on: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Inspected At
+   */
+  inspected_at: string;
+  /**
+   * Inspection Reason
+   */
+  inspection_reason: string;
+  /**
+   * Inspections
+   */
+  inspections?: Array<MachineInspectionView>;
+  /**
+   * Internal Code
+   */
+  internal_code: string;
+  /**
+   * Started On
+   */
+  started_on: string;
+  status: MachineStatus;
+  /**
+   * Version
+   */
+  version: number;
+};
+
+/**
+ * PersonCreate
+ */
+export type PersonCreate = {
+  /**
+   * Contractor Id
+   */
+  contractor_id: string;
+  /**
+   * Display Name
+   */
+  display_name: string;
+  /**
+   * Ended On
+   */
+  ended_on?: string | null;
+  /**
+   * Role Label
+   */
+  role_label?: string;
+  /**
+   * Started On
+   */
+  started_on?: string | null;
+};
+
+/**
+ * PersonView
+ */
+export type PersonView = {
+  /**
+   * Assignment Id
+   */
+  assignment_id: string;
+  /**
+   * Contractor Id
+   */
+  contractor_id: string;
+  /**
+   * Display Name
+   */
+  display_name: string;
+  /**
+   * Ended On
+   */
+  ended_on: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Role Label
+   */
+  role_label: string;
+  /**
+   * Started On
+   */
+  started_on: string;
 };
 
 /**
@@ -43,6 +816,2028 @@ export type ReadyResponse = {
    */
   version: string;
 };
+
+/**
+ * SubjectKind
+ */
+export type SubjectKind = "WORKSITE" | "CONTRACTOR" | "PERSON" | "MACHINE";
+
+/**
+ * VerificationCreate
+ */
+export type VerificationCreate = {
+  decision: VerificationDecision;
+  /**
+   * Notes
+   */
+  notes: string;
+};
+
+/**
+ * VerificationDecision
+ */
+export type VerificationDecision = "ACEPTADA" | "RECHAZADA";
+
+/**
+ * VerificationView
+ */
+export type VerificationView = {
+  /**
+   * Created At
+   */
+  created_at: string;
+  decision: VerificationDecision;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Notes
+   */
+  notes: string;
+  /**
+   * Verified By
+   */
+  verified_by: string;
+};
+
+/**
+ * WorksiteCreate
+ */
+export type WorksiteCreate = {
+  /**
+   * Code
+   */
+  code: string;
+  /**
+   * Jurisdiction
+   */
+  jurisdiction: string;
+  /**
+   * Name
+   */
+  name: string;
+};
+
+/**
+ * WorksiteDetail
+ */
+export type WorksiteDetail = {
+  /**
+   * Audits
+   */
+  audits?: Array<AuditView>;
+  /**
+   * Code
+   */
+  code: string;
+  /**
+   * Contractors
+   */
+  contractors?: Array<ContractorView>;
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Documents
+   */
+  documents?: Array<DocumentView>;
+  /**
+   * Findings
+   */
+  findings?: Array<FindingView>;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Jurisdiction
+   */
+  jurisdiction: string;
+  /**
+   * Machines
+   */
+  machines?: Array<MachineView>;
+  metrics: WorksiteMetrics;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * People
+   */
+  people?: Array<PersonView>;
+  /**
+   * Stages
+   */
+  stages?: Array<WorksiteStageView>;
+  /**
+   * Status
+   */
+  status: "ACTIVE" | "ARCHIVED";
+  /**
+   * Updated At
+   */
+  updated_at: string;
+  /**
+   * Version
+   */
+  version: number;
+};
+
+/**
+ * WorksiteMetrics
+ */
+export type WorksiteMetrics = {
+  /**
+   * Calculated At
+   */
+  calculated_at: string;
+  controls: ControlMetrics;
+  documents: DocumentMetrics;
+  findings: FindingMetrics;
+  latest_audit: LatestAuditView | null;
+  machines: MachineMetrics;
+};
+
+/**
+ * WorksiteStageCreate
+ */
+export type WorksiteStageCreate = {
+  /**
+   * Code
+   */
+  code: string;
+  /**
+   * Ended On
+   */
+  ended_on?: string | null;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Notes
+   */
+  notes?: string | null;
+  /**
+   * Sector
+   */
+  sector?: string | null;
+  /**
+   * Started On
+   */
+  started_on: string;
+};
+
+/**
+ * WorksiteStageView
+ */
+export type WorksiteStageView = {
+  /**
+   * Code
+   */
+  code: string;
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Ended On
+   */
+  ended_on: string | null;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Notes
+   */
+  notes: string | null;
+  /**
+   * Sector
+   */
+  sector: string | null;
+  /**
+   * Started On
+   */
+  started_on: string;
+  /**
+   * Updated At
+   */
+  updated_at: string;
+  /**
+   * Worksite Id
+   */
+  worksite_id: string;
+};
+
+/**
+ * WorksiteSummary
+ */
+export type WorksiteSummary = {
+  /**
+   * Code
+   */
+  code: string;
+  /**
+   * Created At
+   */
+  created_at: string;
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Jurisdiction
+   */
+  jurisdiction: string;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Status
+   */
+  status: "ACTIVE" | "ARCHIVED";
+  /**
+   * Updated At
+   */
+  updated_at: string;
+  /**
+   * Version
+   */
+  version: number;
+};
+
+export type PilotCreateAuditControlData = {
+  body: AuditControlCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Audit Id
+     */
+    audit_id: string;
+  };
+  query?: never;
+  url: "/api/v1/audits/{audit_id}/controls";
+};
+
+export type PilotCreateAuditControlErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateAuditControlError =
+  PilotCreateAuditControlErrors[keyof PilotCreateAuditControlErrors];
+
+export type PilotCreateAuditControlResponses = {
+  /**
+   * Successful Response
+   */
+  201: AuditControlMutationResponse;
+};
+
+export type PilotCreateAuditControlResponse =
+  PilotCreateAuditControlResponses[keyof PilotCreateAuditControlResponses];
+
+export type PilotFinalizeAuditData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Audit Id
+     */
+    audit_id: string;
+  };
+  query?: never;
+  url: "/api/v1/audits/{audit_id}/finalize";
+};
+
+export type PilotFinalizeAuditErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotFinalizeAuditError =
+  PilotFinalizeAuditErrors[keyof PilotFinalizeAuditErrors];
+
+export type PilotFinalizeAuditResponses = {
+  /**
+   * Successful Response
+   */
+  200: AuditView;
+};
+
+export type PilotFinalizeAuditResponse =
+  PilotFinalizeAuditResponses[keyof PilotFinalizeAuditResponses];
+
+export type PilotCreateFindingCorrectionData = {
+  body: CorrectionCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Finding Id
+     */
+    finding_id: string;
+  };
+  query?: never;
+  url: "/api/v1/findings/{finding_id}/corrections";
+};
+
+export type PilotCreateFindingCorrectionErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateFindingCorrectionError =
+  PilotCreateFindingCorrectionErrors[keyof PilotCreateFindingCorrectionErrors];
+
+export type PilotCreateFindingCorrectionResponses = {
+  /**
+   * Successful Response
+   */
+  201: FindingView;
+};
+
+export type PilotCreateFindingCorrectionResponse =
+  PilotCreateFindingCorrectionResponses[keyof PilotCreateFindingCorrectionResponses];
+
+export type PilotSubmitFindingVerificationData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Finding Id
+     */
+    finding_id: string;
+  };
+  query?: never;
+  url: "/api/v1/findings/{finding_id}/submit-verification";
+};
+
+export type PilotSubmitFindingVerificationErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotSubmitFindingVerificationError =
+  PilotSubmitFindingVerificationErrors[keyof PilotSubmitFindingVerificationErrors];
+
+export type PilotSubmitFindingVerificationResponses = {
+  /**
+   * Successful Response
+   */
+  200: FindingView;
+};
+
+export type PilotSubmitFindingVerificationResponse =
+  PilotSubmitFindingVerificationResponses[keyof PilotSubmitFindingVerificationResponses];
+
+export type PilotGetFindingTimelineData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Finding Id
+     */
+    finding_id: string;
+  };
+  query?: never;
+  url: "/api/v1/findings/{finding_id}/timeline";
+};
+
+export type PilotGetFindingTimelineErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotGetFindingTimelineError =
+  PilotGetFindingTimelineErrors[keyof PilotGetFindingTimelineErrors];
+
+export type PilotGetFindingTimelineResponses = {
+  /**
+   * Successful Response
+   */
+  200: FindingTimeline;
+};
+
+export type PilotGetFindingTimelineResponse =
+  PilotGetFindingTimelineResponses[keyof PilotGetFindingTimelineResponses];
+
+export type PilotVerifyFindingData = {
+  body: VerificationCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Finding Id
+     */
+    finding_id: string;
+  };
+  query?: never;
+  url: "/api/v1/findings/{finding_id}/verifications";
+};
+
+export type PilotVerifyFindingErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotVerifyFindingError =
+  PilotVerifyFindingErrors[keyof PilotVerifyFindingErrors];
+
+export type PilotVerifyFindingResponses = {
+  /**
+   * Successful Response
+   */
+  201: FindingView;
+};
+
+export type PilotVerifyFindingResponse =
+  PilotVerifyFindingResponses[keyof PilotVerifyFindingResponses];
 
 export type HealthLiveData = {
   body?: never;
@@ -242,3 +3037,3531 @@ export type HealthReadyResponses = {
 
 export type HealthReadyResponse =
   HealthReadyResponses[keyof HealthReadyResponses];
+
+export type PilotListWorksitesData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path?: never;
+  query?: never;
+  url: "/api/v1/worksites";
+};
+
+export type PilotListWorksitesErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotListWorksitesError =
+  PilotListWorksitesErrors[keyof PilotListWorksitesErrors];
+
+export type PilotListWorksitesResponses = {
+  /**
+   * Response Pilot List Worksites
+   *
+   * Successful Response
+   */
+  200: Array<WorksiteSummary>;
+};
+
+export type PilotListWorksitesResponse =
+  PilotListWorksitesResponses[keyof PilotListWorksitesResponses];
+
+export type PilotCreateWorksiteData = {
+  body: WorksiteCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path?: never;
+  query?: never;
+  url: "/api/v1/worksites";
+};
+
+export type PilotCreateWorksiteErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteError =
+  PilotCreateWorksiteErrors[keyof PilotCreateWorksiteErrors];
+
+export type PilotCreateWorksiteResponses = {
+  /**
+   * Successful Response
+   */
+  201: WorksiteSummary;
+};
+
+export type PilotCreateWorksiteResponse =
+  PilotCreateWorksiteResponses[keyof PilotCreateWorksiteResponses];
+
+export type PilotGetWorksiteData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}";
+};
+
+export type PilotGetWorksiteErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotGetWorksiteError =
+  PilotGetWorksiteErrors[keyof PilotGetWorksiteErrors];
+
+export type PilotGetWorksiteResponses = {
+  /**
+   * Successful Response
+   */
+  200: WorksiteDetail;
+};
+
+export type PilotGetWorksiteResponse =
+  PilotGetWorksiteResponses[keyof PilotGetWorksiteResponses];
+
+export type PilotStartWorksiteAuditData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/audits";
+};
+
+export type PilotStartWorksiteAuditErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotStartWorksiteAuditError =
+  PilotStartWorksiteAuditErrors[keyof PilotStartWorksiteAuditErrors];
+
+export type PilotStartWorksiteAuditResponses = {
+  /**
+   * Successful Response
+   */
+  201: AuditView;
+};
+
+export type PilotStartWorksiteAuditResponse =
+  PilotStartWorksiteAuditResponses[keyof PilotStartWorksiteAuditResponses];
+
+export type PilotCreateWorksiteContractorData = {
+  body: ContractorCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/contractors";
+};
+
+export type PilotCreateWorksiteContractorErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteContractorError =
+  PilotCreateWorksiteContractorErrors[keyof PilotCreateWorksiteContractorErrors];
+
+export type PilotCreateWorksiteContractorResponses = {
+  /**
+   * Successful Response
+   */
+  201: ContractorView;
+};
+
+export type PilotCreateWorksiteContractorResponse =
+  PilotCreateWorksiteContractorResponses[keyof PilotCreateWorksiteContractorResponses];
+
+export type PilotCreateWorksiteDocumentData = {
+  body: DocumentCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/documents";
+};
+
+export type PilotCreateWorksiteDocumentErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteDocumentError =
+  PilotCreateWorksiteDocumentErrors[keyof PilotCreateWorksiteDocumentErrors];
+
+export type PilotCreateWorksiteDocumentResponses = {
+  /**
+   * Successful Response
+   */
+  201: DocumentView;
+};
+
+export type PilotCreateWorksiteDocumentResponse =
+  PilotCreateWorksiteDocumentResponses[keyof PilotCreateWorksiteDocumentResponses];
+
+export type PilotCreateWorksiteDocumentVersionData = {
+  body: DocumentVersionCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/documents/{document_id}/versions";
+};
+
+export type PilotCreateWorksiteDocumentVersionErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteDocumentVersionError =
+  PilotCreateWorksiteDocumentVersionErrors[keyof PilotCreateWorksiteDocumentVersionErrors];
+
+export type PilotCreateWorksiteDocumentVersionResponses = {
+  /**
+   * Successful Response
+   */
+  201: DocumentView;
+};
+
+export type PilotCreateWorksiteDocumentVersionResponse =
+  PilotCreateWorksiteDocumentVersionResponses[keyof PilotCreateWorksiteDocumentVersionResponses];
+
+export type PilotCreateWorksiteMachineData = {
+  body: MachineCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/machines";
+};
+
+export type PilotCreateWorksiteMachineErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteMachineError =
+  PilotCreateWorksiteMachineErrors[keyof PilotCreateWorksiteMachineErrors];
+
+export type PilotCreateWorksiteMachineResponses = {
+  /**
+   * Successful Response
+   */
+  201: MachineView;
+};
+
+export type PilotCreateWorksiteMachineResponse =
+  PilotCreateWorksiteMachineResponses[keyof PilotCreateWorksiteMachineResponses];
+
+export type PilotCreateMachineInspectionData = {
+  body: MachineInspectionCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+    /**
+     * Machine Id
+     */
+    machine_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/machines/{machine_id}/inspections";
+};
+
+export type PilotCreateMachineInspectionErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateMachineInspectionError =
+  PilotCreateMachineInspectionErrors[keyof PilotCreateMachineInspectionErrors];
+
+export type PilotCreateMachineInspectionResponses = {
+  /**
+   * Successful Response
+   */
+  201: MachineView;
+};
+
+export type PilotCreateMachineInspectionResponse =
+  PilotCreateMachineInspectionResponses[keyof PilotCreateMachineInspectionResponses];
+
+export type PilotCreateWorksitePersonData = {
+  body: PersonCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/people";
+};
+
+export type PilotCreateWorksitePersonErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksitePersonError =
+  PilotCreateWorksitePersonErrors[keyof PilotCreateWorksitePersonErrors];
+
+export type PilotCreateWorksitePersonResponses = {
+  /**
+   * Successful Response
+   */
+  201: PersonView;
+};
+
+export type PilotCreateWorksitePersonResponse =
+  PilotCreateWorksitePersonResponses[keyof PilotCreateWorksitePersonResponses];
+
+export type PilotDownloadWorksiteReportData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/report.pdf";
+};
+
+export type PilotDownloadWorksiteReportErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotDownloadWorksiteReportError =
+  PilotDownloadWorksiteReportErrors[keyof PilotDownloadWorksiteReportErrors];
+
+export type PilotDownloadWorksiteReportResponses = {
+  /**
+   * Synchronous synthetic worksite report
+   */
+  200: Blob | File;
+};
+
+export type PilotDownloadWorksiteReportResponse =
+  PilotDownloadWorksiteReportResponses[keyof PilotDownloadWorksiteReportResponses];
+
+export type PilotCreateWorksiteStageData = {
+  body: WorksiteStageCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/stages";
+};
+
+export type PilotCreateWorksiteStageErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteStageError =
+  PilotCreateWorksiteStageErrors[keyof PilotCreateWorksiteStageErrors];
+
+export type PilotCreateWorksiteStageResponses = {
+  /**
+   * Successful Response
+   */
+  201: WorksiteStageView;
+};
+
+export type PilotCreateWorksiteStageResponse =
+  PilotCreateWorksiteStageResponses[keyof PilotCreateWorksiteStageResponses];

@@ -28,6 +28,7 @@ class Worksite(Base):
             "status IN ('ACTIVE', 'ARCHIVED')",
             name="valid_status",
         ),
+        CheckConstraint("btrim(jurisdiction) <> ''", name="jurisdiction_not_blank"),
         Index("ix_worksites_organization_id_status", "organization_id", "status"),
     )
 
@@ -38,6 +39,9 @@ class Worksite(Base):
     )
     code: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    jurisdiction: Mapped[str] = mapped_column(
+        String(200), nullable=False, server_default=text("'SIN_ESPECIFICAR'")
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'ACTIVE'"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

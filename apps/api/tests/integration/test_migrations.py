@@ -10,6 +10,32 @@ from hys_api.db.schema import EXPECTED_SCHEMA_REVISION
 
 pytestmark = pytest.mark.integration
 
+PILOT_TABLES = {
+    "audit_controls",
+    "audits",
+    "contractor_documents",
+    "contractors",
+    "control_catalog_versions",
+    "corrections",
+    "documents",
+    "document_versions",
+    "finding_controls",
+    "finding_events",
+    "findings",
+    "machine_documents",
+    "machine_inspections",
+    "machine_worksite_assignments",
+    "machines",
+    "people",
+    "person_assignments",
+    "person_documents",
+    "severity_catalog_versions",
+    "verifications",
+    "worksite_contractors",
+    "worksite_documents",
+    "worksite_stages",
+}
+
 
 @pytest.mark.asyncio
 async def test_empty_database_migrates_to_expected_revision(migrated_database: str) -> None:
@@ -30,6 +56,7 @@ async def test_empty_database_migrates_to_expected_revision(migrated_database: s
 
     assert revision == EXPECTED_SCHEMA_REVISION
     assert {"alembic_version", "organizations", "worksites"} <= tables
+    assert PILOT_TABLES <= tables
 
 
 def test_metadata_matches_head(migrated_database: str) -> None:
@@ -43,4 +70,12 @@ def test_initial_revision_downgrades_and_reupgrades(migrated_database: str) -> N
     config = Config(str(api_root / "alembic.ini"))
 
     command.downgrade(config, "base")
+    command.upgrade(config, "head")
+
+
+def test_pilot_revision_downgrades_and_reupgrades(migrated_database: str) -> None:
+    api_root = Path(__file__).resolve().parents[2]
+    config = Config(str(api_root / "alembic.ini"))
+
+    command.downgrade(config, "20260902_0001")
     command.upgrade(config, "head")
