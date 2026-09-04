@@ -82,6 +82,14 @@ administrativas auditadas, no reset público.
 | `GET/PATCH /people/{id}` | idem | respuesta enmascarada por defecto |
 | `GET/POST /worksites/{id}/person-assignments` | `resources.read/write` | persona–contratista–obra temporal |
 
+El piloto expone `GET/POST /worksites/{id}/functional-assignments` para consultar
+y registrar la función temporal de un actor sintético. La respuesta incluye
+profesión, función, empresa representada, alcance y vigencia. La creación sólo
+acepta UUID del adaptador sintético y nunca crea usuarios; exige una persona
+asignada a la misma obra, profesión compatible y, para funciones del contratista,
+la participación PRINCIPAL. El alcance efectivo no puede exceder el alcance del
+actor ni cruzar de obra.
+
 Una comparación exacta normaliza en servidor y consulta el HMAC bajo RLS; no
 acepta ni devuelve tokens HMAC. Revelar el identificador requiere `pii.view`,
 scope, propósito y MFA reciente cuando corresponda; el servidor descifra el
@@ -130,6 +138,12 @@ metadata. Carga y finalización requieren hash/tamaño y límites configurados.
 | `POST /audits/{id}/finalize` | `audits.finalize` | valida totalidad y calcula snapshot hash |
 | `POST /audits/{id}/close` | `audits.close` | RHS distinto; guards y ETag |
 | `GET /control-catalog/versions/{id}` | `audits.read` | definición inmutable usada |
+
+`POST /worksites/{id}/audits` acepta opcionalmente `auditor_assignment_id` para
+seleccionar una asignación vigente del actor. La auditoría persiste obra, actor
+auditor, asignación, fecha y, cuando existe, la persona profesional responsable
+del proyecto; `author_actor_id` y `editor_actor_id` continúan como campos de
+compatibilidad.
 
 ### Desvíos y evidencia
 

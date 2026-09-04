@@ -11,6 +11,11 @@ export const PILOT_ACTORS = [
     label: "Responsable H&S suplente",
     role: "RESPONSABLE_HYS",
   },
+  {
+    value: "contratista-principal",
+    label: "Contratista principal",
+    role: "CONTRATISTA",
+  },
 ] as const;
 
 export type PilotActor = (typeof PILOT_ACTORS)[number]["value"];
@@ -46,12 +51,16 @@ export interface Contractor {
   trade: string;
   started_on?: string;
   ended_on?: string | null;
+  participation_type?: string;
+  parent_contracting_company_id?: Identifier | null;
+  parent_contracting_company_name?: string | null;
 }
 
 export interface Person {
   id: Identifier;
   display_name: string;
   role_label: string;
+  profession_code?: string;
   contractor_id: Identifier;
   contractor_name?: string;
   started_on?: string;
@@ -133,10 +142,33 @@ export interface Audit {
   status: string;
   started_at: string;
   finalized_at?: string | null;
+  worksite_id?: Identifier | null;
+  auditor_actor_id?: Identifier | null;
+  auditor_assignment_id?: Identifier | null;
+  associated_professional_person_id?: Identifier | null;
+  audit_date?: string | null;
   author_actor?: string;
   editor_actor?: string;
   available_controls: AuditCatalogControl[];
   controls: AuditControl[];
+}
+
+export interface FunctionalAssignment {
+  id: Identifier;
+  worksite_id: Identifier;
+  actor_id: Identifier;
+  actor_key: string;
+  actor_label: string;
+  person_id?: Identifier | null;
+  person_name?: string | null;
+  profession_code?: string | null;
+  function_code: string;
+  represented_contractor_id?: Identifier | null;
+  represented_contractor_name?: string | null;
+  permission_scope: string;
+  valid_from: string;
+  valid_to?: string | null;
+  version: number;
 }
 
 export interface FindingCorrection {
@@ -218,6 +250,7 @@ export interface WorksiteMetrics {
 export interface WorksiteDetail extends WorksiteSummary {
   stages: WorksiteStage[];
   contractors: Contractor[];
+  functional_assignments?: FunctionalAssignment[];
   people: Person[];
   documents: PilotDocument[];
   machines: Machine[];

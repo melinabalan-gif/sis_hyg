@@ -35,6 +35,9 @@ import type {
   PilotCreateWorksiteDocumentVersionErrors,
   PilotCreateWorksiteDocumentVersionResponses,
   PilotCreateWorksiteErrors,
+  PilotCreateWorksiteFunctionalAssignmentData,
+  PilotCreateWorksiteFunctionalAssignmentErrors,
+  PilotCreateWorksiteFunctionalAssignmentResponses,
   PilotCreateWorksiteMachineData,
   PilotCreateWorksiteMachineErrors,
   PilotCreateWorksiteMachineResponses,
@@ -57,6 +60,9 @@ import type {
   PilotGetWorksiteData,
   PilotGetWorksiteErrors,
   PilotGetWorksiteResponses,
+  PilotListWorksiteFunctionalAssignmentsData,
+  PilotListWorksiteFunctionalAssignmentsErrors,
+  PilotListWorksiteFunctionalAssignmentsResponses,
   PilotListWorksitesData,
   PilotListWorksitesErrors,
   PilotListWorksitesResponses,
@@ -303,7 +309,14 @@ export const pilotStartWorksiteAudit = <ThrowOnError extends boolean = false>(
     PilotStartWorksiteAuditResponses,
     PilotStartWorksiteAuditErrors,
     ThrowOnError
-  >({ url: "/api/v1/worksites/{worksite_id}/audits", ...options });
+  >({
+    url: "/api/v1/worksites/{worksite_id}/audits",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
 
 /**
  * Create Worksite Contractor
@@ -373,6 +386,52 @@ export const pilotCreateWorksiteDocumentVersion = <
     ThrowOnError
   >({
     url: "/api/v1/worksites/{worksite_id}/documents/{document_id}/versions",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * List Worksite Functional Assignments
+ */
+export const pilotListWorksiteFunctionalAssignments = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotListWorksiteFunctionalAssignmentsData, ThrowOnError>,
+): RequestResult<
+  PilotListWorksiteFunctionalAssignmentsResponses,
+  PilotListWorksiteFunctionalAssignmentsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    PilotListWorksiteFunctionalAssignmentsResponses,
+    PilotListWorksiteFunctionalAssignmentsErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/functional-assignments",
+    ...options,
+  });
+
+/**
+ * Create Worksite Functional Assignment
+ */
+export const pilotCreateWorksiteFunctionalAssignment = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateWorksiteFunctionalAssignmentData, ThrowOnError>,
+): RequestResult<
+  PilotCreateWorksiteFunctionalAssignmentResponses,
+  PilotCreateWorksiteFunctionalAssignmentErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateWorksiteFunctionalAssignmentResponses,
+    PilotCreateWorksiteFunctionalAssignmentErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/functional-assignments",
     ...options,
     headers: {
       "Content-Type": "application/json",

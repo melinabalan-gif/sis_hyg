@@ -23,6 +23,7 @@ class PilotRole(StrEnum):
     AUDITOR = "AUDITOR"
     TECNICO = "TECNICO"
     RESPONSABLE_HYS = "RESPONSABLE_HYS"
+    CONTRATISTA = "CONTRATISTA"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,9 @@ class PilotActor:
     key: str
     id: UUID
     role: PilotRole
+    label: str = "Actor sintético"
+    profession_code: str | None = None
+    permission_scope: str = "WORKSITE"
 
 
 PILOT_ACTORS = MappingProxyType(
@@ -40,21 +44,36 @@ PILOT_ACTORS = MappingProxyType(
             key="auditor",
             id=UUID("00000000-0000-4000-8000-000000000001"),
             role=PilotRole.AUDITOR,
+            label="Auditor delegado proyecto",
+            profession_code="TECNICO_HYS",
         ),
         "tecnico": PilotActor(
             key="tecnico",
             id=UUID("00000000-0000-4000-8000-000000000002"),
             role=PilotRole.TECNICO,
+            label="Técnico H&S contratista principal",
+            profession_code="TECNICO_HYS",
         ),
         "responsable": PilotActor(
             key="responsable",
             id=UUID("00000000-0000-4000-8000-000000000003"),
             role=PilotRole.RESPONSABLE_HYS,
+            label="Responsable H&S proyecto",
+            profession_code="LICENCIADO_HYS",
         ),
         "responsable-suplente": PilotActor(
             key="responsable-suplente",
             id=UUID("00000000-0000-4000-8000-000000000004"),
             role=PilotRole.RESPONSABLE_HYS,
+            label="Profesional H&S contratista principal",
+            profession_code="LICENCIADO_HYS",
+        ),
+        "contratista-principal": PilotActor(
+            key="contratista-principal",
+            id=UUID("00000000-0000-4000-8000-000000000005"),
+            role=PilotRole.CONTRATISTA,
+            label="Contratista principal",
+            profession_code="CONTRATISTA",
         ),
     }
 )

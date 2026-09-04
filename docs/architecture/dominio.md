@@ -75,6 +75,28 @@ y las anteriores se retiran al verificar la re-tokenización.
 worksite. Exclusiones temporales se aplican sólo donde el negocio prohíbe
 asignaciones incompatibles; etapas pueden solaparse deliberadamente.
 
+### 2.2 Actor sintético, profesión y función de obra
+
+El piloto conserva los selectores y UUID del adaptador de actores existente, sin
+crear una tabla de autenticación. La identidad técnica no reemplaza el dominio:
+
+| Concepto | Persistencia | Semántica |
+|---|---|---|
+| Profesión | `PERSON.profession_code` | catálogo controlado, independiente del texto de función |
+| Función | `WORKSITE_FUNCTIONAL_ASSIGNMENT.function_code` | asignación temporal del actor a una obra |
+| Empresa representada | `WORKSITE_FUNCTIONAL_ASSIGNMENT.represented_contractor_id` | vínculo contextual, no tipo de actor |
+| Alcance | `WORKSITE_FUNCTIONAL_ASSIGNMENT.permission_scope` | obra u organización |
+
+Las funciones del corte son `RESPONSABLE_HYS_PROYECTO`,
+`AUDITOR_DELEGADO_PROYECTO`, `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL` y
+`TECNICO_HYS_CONTRATISTA_PRINCIPAL`. La autorización efectiva consulta la
+asignación vigente y la obra antes de usar el rol textual legado.
+
+`WORKSITE_CONTRACTOR` distingue `PRINCIPAL`, `CONTRACTOR` y `SUBCONTRACTOR`.
+`parent_contracting_company_id` es nullable sólo para el principal y apunta a
+otra participación de la misma organización y obra. Un índice parcial permite
+un único principal por obra.
+
 ### 2.1 Semántica de campos criptográficos
 
 - `identifier_ciphertext` es recuperable únicamente mediante AES-256-GCM de
@@ -172,7 +194,7 @@ erDiagram
   FILE_ASSET ||--o{ EVIDENCE : stores
   FILE_ASSET ||--o{ AUDIT_REPORT : stores
 
-  AUDIT { uuid id PK; uuid organization_id FK; uuid worksite_id FK; uuid author_id FK; uuid editor_id FK; uuid device_installation_id FK; string status; json scope_snapshot; timestamp started_at; timestamp finalized_at; timestamp closed_at; uuid closed_by FK; int version }
+  AUDIT { uuid id PK; uuid organization_id FK; uuid worksite_id FK; uuid author_id FK; uuid editor_id FK; uuid auditor_actor_id; uuid auditor_assignment_id FK; uuid associated_professional_person_id FK; date audit_date; uuid device_installation_id FK; string status; json scope_snapshot; timestamp started_at; timestamp finalized_at; timestamp closed_at; uuid closed_by FK; int version }
   AUDIT_ATTENDANCE { uuid id PK; uuid organization_id FK; uuid audit_id FK; uuid person_id FK; json person_snapshot; bool present }
   CONTROL_CATALOG_VERSION { uuid id PK; uuid organization_id FK; string code; int version; json definition; timestamp published_at }
   AUDIT_CONTROL { uuid id PK; uuid organization_id FK; uuid audit_id FK; uuid catalog_version_id FK; string result; string reason; string comment; json control_snapshot; int version }

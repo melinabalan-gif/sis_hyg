@@ -77,6 +77,16 @@ export type AuditControlView = {
 };
 
 /**
+ * AuditStartCreate
+ */
+export type AuditStartCreate = {
+  /**
+   * Auditor Assignment Id
+   */
+  auditor_assignment_id?: string | null;
+};
+
+/**
  * AuditStatus
  */
 export type AuditStatus = "EN_CURSO" | "FINALIZADA";
@@ -85,6 +95,22 @@ export type AuditStatus = "EN_CURSO" | "FINALIZADA";
  * AuditView
  */
 export type AuditView = {
+  /**
+   * Associated Professional Person Id
+   */
+  associated_professional_person_id?: string | null;
+  /**
+   * Audit Date
+   */
+  audit_date?: string | null;
+  /**
+   * Auditor Actor Id
+   */
+  auditor_actor_id?: string | null;
+  /**
+   * Auditor Assignment Id
+   */
+  auditor_assignment_id?: string | null;
   /**
    * Author Id
    */
@@ -114,6 +140,10 @@ export type AuditView = {
    */
   started_at: string;
   status: AuditStatus;
+  /**
+   * Worksite Id
+   */
+  worksite_id?: string | null;
 };
 
 /**
@@ -129,6 +159,11 @@ export type ContractorCreate = {
    */
   legal_name: string;
   /**
+   * Parent Contracting Company Id
+   */
+  parent_contracting_company_id?: string | null;
+  participation_type?: ContractorParticipationType | null;
+  /**
    * Started On
    */
   started_on?: string | null;
@@ -137,6 +172,12 @@ export type ContractorCreate = {
    */
   trade: string;
 };
+
+/**
+ * ContractorParticipationType
+ */
+export type ContractorParticipationType =
+  "PRINCIPAL" | "CONTRACTOR" | "SUBCONTRACTOR";
 
 /**
  * ContractorView
@@ -158,6 +199,15 @@ export type ContractorView = {
    * Legal Name
    */
   legal_name: string;
+  /**
+   * Parent Contracting Company Id
+   */
+  parent_contracting_company_id: string | null;
+  /**
+   * Parent Contracting Company Name
+   */
+  parent_contracting_company_name: string | null;
+  participation_type: ContractorParticipationType;
   /**
    * Started On
    */
@@ -561,6 +611,15 @@ export type FindingView = {
 };
 
 /**
+ * FunctionalAssignmentCode
+ */
+export type FunctionalAssignmentCode =
+  | "RESPONSABLE_HYS_PROYECTO"
+  | "AUDITOR_DELEGADO_PROYECTO"
+  | "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
+  | "TECNICO_HYS_CONTRATISTA_PRINCIPAL";
+
+/**
  * LatestAuditView
  */
 export type LatestAuditView = {
@@ -736,6 +795,11 @@ export type MachineView = {
 };
 
 /**
+ * PermissionScope
+ */
+export type PermissionScope = "WORKSITE" | "ORGANIZATION";
+
+/**
  * PersonCreate
  */
 export type PersonCreate = {
@@ -751,6 +815,7 @@ export type PersonCreate = {
    * Ended On
    */
   ended_on?: string | null;
+  profession_code?: ProfessionCode;
   /**
    * Role Label
    */
@@ -785,6 +850,7 @@ export type PersonView = {
    * Id
    */
   id: string;
+  profession_code: ProfessionCode;
   /**
    * Role Label
    */
@@ -794,6 +860,12 @@ export type PersonView = {
    */
   started_on: string;
 };
+
+/**
+ * ProfessionCode
+ */
+export type ProfessionCode =
+  "LICENCIADO_HYS" | "TECNICO_HYS" | "CONTRATISTA" | "OTRA";
 
 /**
  * ReadyResponse
@@ -908,6 +980,10 @@ export type WorksiteDetail = {
    */
   findings?: Array<FindingView>;
   /**
+   * Functional Assignments
+   */
+  functional_assignments?: Array<WorksiteFunctionalAssignmentView>;
+  /**
    * Id
    */
   id: string;
@@ -944,6 +1020,91 @@ export type WorksiteDetail = {
    * Version
    */
   version: number;
+};
+
+/**
+ * WorksiteFunctionalAssignmentCreate
+ */
+export type WorksiteFunctionalAssignmentCreate = {
+  /**
+   * Actor Id
+   */
+  actor_id: string;
+  function_code: FunctionalAssignmentCode;
+  permission_scope?: PermissionScope;
+  /**
+   * Person Id
+   */
+  person_id?: string | null;
+  /**
+   * Represented Contractor Id
+   */
+  represented_contractor_id?: string | null;
+  /**
+   * Valid From
+   */
+  valid_from?: string | null;
+  /**
+   * Valid To
+   */
+  valid_to?: string | null;
+};
+
+/**
+ * WorksiteFunctionalAssignmentView
+ */
+export type WorksiteFunctionalAssignmentView = {
+  /**
+   * Actor Id
+   */
+  actor_id: string;
+  /**
+   * Actor Key
+   */
+  actor_key: string;
+  /**
+   * Actor Label
+   */
+  actor_label: string;
+  function_code: FunctionalAssignmentCode;
+  /**
+   * Id
+   */
+  id: string;
+  permission_scope: PermissionScope;
+  /**
+   * Person Id
+   */
+  person_id: string | null;
+  /**
+   * Person Name
+   */
+  person_name: string | null;
+  profession_code: ProfessionCode | null;
+  /**
+   * Represented Contractor Id
+   */
+  represented_contractor_id: string | null;
+  /**
+   * Represented Contractor Name
+   */
+  represented_contractor_name: string | null;
+  /**
+   * Valid From
+   */
+  valid_from: string;
+  /**
+   * Valid To
+   */
+  valid_to: string | null;
+  /**
+   * Version
+   */
+  version: number;
+  /**
+   * Worksite Id
+   */
+  worksite_id: string;
 };
 
 /**
@@ -3913,7 +4074,10 @@ export type PilotGetWorksiteResponse =
   PilotGetWorksiteResponses[keyof PilotGetWorksiteResponses];
 
 export type PilotStartWorksiteAuditData = {
-  body?: never;
+  /**
+   * Payload
+   */
+  body?: AuditStartCreate | null;
   headers?: {
     /**
      * X-Pilot-Actor
@@ -5091,6 +5255,596 @@ export type PilotCreateWorksiteDocumentVersionResponses = {
 
 export type PilotCreateWorksiteDocumentVersionResponse =
   PilotCreateWorksiteDocumentVersionResponses[keyof PilotCreateWorksiteDocumentVersionResponses];
+
+export type PilotListWorksiteFunctionalAssignmentsData = {
+  body?: never;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/functional-assignments";
+};
+
+export type PilotListWorksiteFunctionalAssignmentsErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotListWorksiteFunctionalAssignmentsError =
+  PilotListWorksiteFunctionalAssignmentsErrors[keyof PilotListWorksiteFunctionalAssignmentsErrors];
+
+export type PilotListWorksiteFunctionalAssignmentsResponses = {
+  /**
+   * Response Pilot List Worksite Functional Assignments
+   *
+   * Successful Response
+   */
+  200: Array<WorksiteFunctionalAssignmentView>;
+};
+
+export type PilotListWorksiteFunctionalAssignmentsResponse =
+  PilotListWorksiteFunctionalAssignmentsResponses[keyof PilotListWorksiteFunctionalAssignmentsResponses];
+
+export type PilotCreateWorksiteFunctionalAssignmentData = {
+  body: WorksiteFunctionalAssignmentCreate;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/functional-assignments";
+};
+
+export type PilotCreateWorksiteFunctionalAssignmentErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotCreateWorksiteFunctionalAssignmentError =
+  PilotCreateWorksiteFunctionalAssignmentErrors[keyof PilotCreateWorksiteFunctionalAssignmentErrors];
+
+export type PilotCreateWorksiteFunctionalAssignmentResponses = {
+  /**
+   * Successful Response
+   */
+  201: WorksiteFunctionalAssignmentView;
+};
+
+export type PilotCreateWorksiteFunctionalAssignmentResponse =
+  PilotCreateWorksiteFunctionalAssignmentResponses[keyof PilotCreateWorksiteFunctionalAssignmentResponses];
 
 export type PilotCreateWorksiteMachineData = {
   body: MachineCreate;

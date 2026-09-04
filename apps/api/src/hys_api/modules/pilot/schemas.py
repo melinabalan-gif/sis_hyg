@@ -55,6 +55,31 @@ class AuditStatus(StrEnum):
     FINALIZADA = "FINALIZADA"
 
 
+class ProfessionCode(StrEnum):
+    LICENCIADO_HYS = "LICENCIADO_HYS"
+    TECNICO_HYS = "TECNICO_HYS"
+    CONTRATISTA = "CONTRATISTA"
+    OTRA = "OTRA"
+
+
+class FunctionalAssignmentCode(StrEnum):
+    RESPONSABLE_HYS_PROYECTO = "RESPONSABLE_HYS_PROYECTO"
+    AUDITOR_DELEGADO_PROYECTO = "AUDITOR_DELEGADO_PROYECTO"
+    RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL = "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
+    TECNICO_HYS_CONTRATISTA_PRINCIPAL = "TECNICO_HYS_CONTRATISTA_PRINCIPAL"
+
+
+class PermissionScope(StrEnum):
+    WORKSITE = "WORKSITE"
+    ORGANIZATION = "ORGANIZATION"
+
+
+class ContractorParticipationType(StrEnum):
+    PRINCIPAL = "PRINCIPAL"
+    CONTRACTOR = "CONTRACTOR"
+    SUBCONTRACTOR = "SUBCONTRACTOR"
+
+
 class ControlResult(StrEnum):
     CUMPLE = "CUMPLE"
     NO_CUMPLE = "NO_CUMPLE"
@@ -106,6 +131,8 @@ class DatedAssignmentCreate(StrictSchema):
 class ContractorCreate(DatedAssignmentCreate):
     legal_name: ShortText
     trade: ShortText
+    participation_type: ContractorParticipationType | None = None
+    parent_contracting_company_id: UUID | None = None
 
 
 class ContractorView(StrictSchema):
@@ -115,12 +142,16 @@ class ContractorView(StrictSchema):
     trade: str
     started_on: date
     ended_on: date | None
+    participation_type: ContractorParticipationType
+    parent_contracting_company_id: UUID | None
+    parent_contracting_company_name: str | None
 
 
 class PersonCreate(DatedAssignmentCreate):
     display_name: ShortText
     contractor_id: UUID
     role_label: ShortText = "Personal"
+    profession_code: ProfessionCode = ProfessionCode.OTRA
 
 
 class PersonView(StrictSchema):
@@ -129,6 +160,7 @@ class PersonView(StrictSchema):
     display_name: str
     contractor_id: UUID
     role_label: str
+    profession_code: ProfessionCode
     started_on: date
     ended_on: date | None
 
@@ -257,6 +289,10 @@ class AuditControlCreate(StrictSchema):
         return self
 
 
+class AuditStartCreate(StrictSchema):
+    auditor_assignment_id: UUID | None = None
+
+
 class AuditControlView(StrictSchema):
     id: UUID
     catalog_code: str
@@ -376,6 +412,11 @@ class AuditView(StrictSchema):
     editor_id: UUID
     started_at: datetime
     finalized_at: datetime | None
+    worksite_id: UUID | None = None
+    auditor_actor_id: UUID | None = None
+    auditor_assignment_id: UUID | None = None
+    associated_professional_person_id: UUID | None = None
+    audit_date: date | None = None
     available_controls: list[AuditCatalogControlView] = Field(default_factory=list)
     controls: list[AuditControlView] = Field(default_factory=list)
 
@@ -413,9 +454,48 @@ class WorksiteStageView(StrictSchema):
     updated_at: datetime
 
 
+class WorksiteFunctionalAssignmentCreate(StrictSchema):
+    actor_id: UUID
+    person_id: UUID | None = None
+    function_code: FunctionalAssignmentCode
+    represented_contractor_id: UUID | None = None
+    permission_scope: PermissionScope = PermissionScope.WORKSITE
+    valid_from: date | None = None
+    valid_to: date | None = None
+
+    @model_validator(mode="after")
+    def validate_interval(self) -> Self:
+        if (
+            self.valid_from is not None
+            and self.valid_to is not None
+            and self.valid_to <= self.valid_from
+        ):
+            raise ValueError("valid_to debe ser posterior a valid_from")
+        return self
+
+
+class WorksiteFunctionalAssignmentView(StrictSchema):
+    id: UUID
+    worksite_id: UUID
+    actor_id: UUID
+    actor_key: str
+    actor_label: str
+    person_id: UUID | None
+    person_name: str | None
+    profession_code: ProfessionCode | None
+    function_code: FunctionalAssignmentCode
+    represented_contractor_id: UUID | None
+    represented_contractor_name: str | None
+    permission_scope: PermissionScope
+    valid_from: date
+    valid_to: date | None
+    version: int
+
+
 class WorksiteDetail(WorksiteSummary):
     stages: list[WorksiteStageView] = Field(default_factory=list)
     contractors: list[ContractorView] = Field(default_factory=list)
+    functional_assignments: list[WorksiteFunctionalAssignmentView] = Field(default_factory=list)
     people: list[PersonView] = Field(default_factory=list)
     documents: list[DocumentView] = Field(default_factory=list)
     machines: list[MachineView] = Field(default_factory=list)

@@ -176,6 +176,7 @@ export function PilotWorkspace() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const role = actorRole(actor);
+  const actorDefinition = PILOT_ACTORS.find((item) => item.value === actor);
   const canManageResources = role === "TECNICO" || role === "RESPONSABLE_HYS";
   const canManageAudit = role === "AUDITOR" || role === "RESPONSABLE_HYS";
   const canVerify = role === "RESPONSABLE_HYS";
@@ -460,6 +461,18 @@ export function PilotWorkspace() {
               ))}
             </select>
           </label>
+          <div className="actor-context" aria-label="Contexto de asignación">
+            <strong>{actorDefinition?.label}</strong>
+            <span>
+              Profesión:{" "}
+              {actorDefinition?.value === "contratista-principal"
+                ? "Contratista"
+                : actorDefinition?.role === "RESPONSABLE_HYS"
+                  ? "Licenciado H&S"
+                  : "Técnico H&S"}
+            </span>
+            <span>Alcance: obra seleccionada</span>
+          </div>
         </header>
 
         <div className="pilot-notice">
@@ -567,6 +580,14 @@ export function PilotWorkspace() {
                       (form) => ({
                         legal_name: fieldValue(form, "legal_name"),
                         trade: fieldValue(form, "trade"),
+                        participation_type: optionalField(
+                          form,
+                          "participation_type",
+                        ),
+                        parent_contracting_company_id: optionalField(
+                          form,
+                          "parent_contracting_company_id",
+                        ),
                         started_on: optionalField(form, "started_on"),
                       }),
                       "Contratista asignado a la obra.",
@@ -587,6 +608,7 @@ export function PilotWorkspace() {
                       (form) => ({
                         display_name: fieldValue(form, "display_name"),
                         role_label: fieldValue(form, "role_label"),
+                        profession_code: fieldValue(form, "profession_code"),
                         contractor_id: fieldValue(form, "contractor_id"),
                         started_on: optionalField(form, "started_on"),
                       }),
@@ -685,14 +707,17 @@ export function PilotWorkspace() {
               {step === "audit" ? (
                 <AuditStep
                   detail={detail}
+                  actor={actor}
                   audit={activeAudit}
                   busy={busy}
                   canManage={canManageAudit}
-                  onStart={() =>
+                  onStart={(assignmentId) =>
                     void mutate(
                       "audit-start",
                       `/worksites/${detail.id}/audits`,
-                      {},
+                      assignmentId
+                        ? { auditor_assignment_id: assignmentId }
+                        : {},
                       "Auditoría iniciada. Ya podés registrar el control.",
                     )
                   }
@@ -819,6 +844,33 @@ function Overview({
           </button>
         ))}
       </div>
+      <Card className="scope-card">
+        <div>
+          <StatusBadge value="ASIGNACIONES" />
+          <h3>Actores y funciones en esta obra</h3>
+          <p>
+            La profesión, la función operativa, la empresa representada y el
+            alcance se mantienen separados.
+          </p>
+        </div>
+        <ul className="record-list">
+          {(detail.functional_assignments ?? []).map((assignment) => (
+            <li key={assignment.id}>
+              <div>
+                <strong>{assignment.actor_label}</strong>
+                <span>
+                  {assignment.function_code} ·{" "}
+                  {assignment.profession_code ?? "Sin profesión"}
+                </span>
+              </div>
+              <small>
+                {assignment.represented_contractor_name ?? "Proyecto"} ·{" "}
+                {assignment.permission_scope}
+              </small>
+            </li>
+          ))}
+        </ul>
+      </Card>
       <div className="dashboard-grid">
         <DashboardPanel
           eyebrow="01 · Legajo"
@@ -1071,6 +1123,24 @@ function ContractorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
             <Field label="Rubro">
               <input name="trade" required placeholder="Montaje / excavación" />
             </Field>
+            <Field label="Participación">
+              <select name="participation_type" defaultValue="">
+                <option value="">Automática</option>
+                <option value="PRINCIPAL">Principal</option>
+                <option value="CONTRACTOR">Contratista</option>
+                <option value="SUBCONTRACTOR">Subcontratista</option>
+              </select>
+            </Field>
+            <Field label="Empresa contratante (opcional)">
+              <select name="parent_contracting_company_id" defaultValue="">
+                <option value="">Sin empresa</option>
+                {detail.contractors.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.legal_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Inicio">
               <input name="started_on" type="date" />
             </Field>
@@ -1092,6 +1162,12 @@ function ContractorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
                   <div>
                     <strong>{item.legal_name}</strong>
                     <span>{item.trade}</span>
+                    <small>
+                      {item.participation_type ?? "CONTRACTOR"}
+                      {item.parent_contracting_company_name
+                        ? ` · Depende de ${item.parent_contracting_company_name}`
+                        : " · Sin empresa contratante"}
+                    </small>
                   </div>
                   <small>
                     {item.started_on
@@ -1132,6 +1208,14 @@ function PeopleStep({ detail, busy, canManage, onSubmit }: StepProps) {
             <Field label="Función">
               <input name="role_label" required placeholder="Operador" />
             </Field>
+            <Field label="Profesión controlada">
+              <select name="profession_code" defaultValue="OTRA">
+                <option value="LICENCIADO_HYS">Licenciado H&amp;S</option>
+                <option value="TECNICO_HYS">Técnico H&amp;S</option>
+                <option value="CONTRATISTA">Contratista</option>
+                <option value="OTRA">Otra</option>
+              </select>
+            </Field>
             <Field label="Contratista">
               <select name="contractor_id" required defaultValue="">
                 <option value="" disabled>
@@ -1171,7 +1255,10 @@ function PeopleStep({ detail, busy, canManage, onSubmit }: StepProps) {
                 <li key={item.id}>
                   <div>
                     <strong>{item.display_name}</strong>
-                    <span>{item.role_label}</span>
+                    <span>
+                      {item.role_label} · Profesión{" "}
+                      {item.profession_code ?? "OTRA"}
+                    </span>
                   </div>
                   <small>
                     {item.contractor_name ??
@@ -1562,6 +1649,7 @@ function MachinesStep({
 
 function AuditStep({
   detail,
+  actor,
   audit,
   busy,
   canManage,
@@ -1570,10 +1658,11 @@ function AuditStep({
   onFinalize,
 }: {
   detail: WorksiteDetail;
+  actor: PilotActor;
   audit: Audit | null;
   busy: string | null;
   canManage: boolean;
-  onStart: () => void;
+  onStart: (assignmentId?: string) => void;
   onControl: (event: FormEvent<HTMLFormElement>, catalogCode: string) => void;
   onFinalize: () => void;
 }) {
@@ -1586,6 +1675,16 @@ function AuditStep({
     answeredByCode.has(control.catalog_code),
   ).length;
   const progressLabel = `${answeredCount} de ${availableControls.length} controles respondidos`;
+  const auditAssignments = (detail.functional_assignments ?? []).filter(
+    (assignment) =>
+      assignment.actor_key === actor &&
+      ["AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"].includes(
+        assignment.function_code,
+      ),
+  );
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(
+    auditAssignments[0]?.id ?? "",
+  );
   return (
     <section>
       <StepHeading
@@ -1597,12 +1696,30 @@ function AuditStep({
         <Card className="action-card">
           <div>
             <h3>Iniciar una auditoría</h3>
-            <p>Fija obra, autor, editor y catálogo sintético publicado.</p>
+            <p>Fija obra, auditoría asignada y catálogo sintético publicado.</p>
           </div>
+          {auditAssignments.length ? (
+            <Field label="Asignación de auditoría">
+              <select
+                aria-label="Asignación de auditoría"
+                onChange={(event) =>
+                  setSelectedAssignmentId(event.target.value)
+                }
+                value={selectedAssignmentId}
+              >
+                {auditAssignments.map((assignment) => (
+                  <option key={assignment.id} value={assignment.id}>
+                    {assignment.function_code} ·{" "}
+                    {assignment.person_name ?? assignment.actor_label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
           <button
             className="button button--primary"
             disabled={busy !== null || !canManage}
-            onClick={onStart}
+            onClick={() => onStart(selectedAssignmentId || undefined)}
             type="button"
           >
             Iniciar auditoría

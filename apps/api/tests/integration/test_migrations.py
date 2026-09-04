@@ -32,6 +32,7 @@ PILOT_TABLES = {
     "severity_catalog_versions",
     "verifications",
     "worksite_contractors",
+    "worksite_functional_assignments",
     "worksite_documents",
     "worksite_stages",
 }

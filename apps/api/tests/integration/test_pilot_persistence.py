@@ -1,3 +1,4 @@
+import os
 from datetime import date
 from uuid import UUID
 
@@ -9,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from hys_api.api.dependencies import PILOT_ACTORS, PILOT_ORGANIZATION_ID, PilotRequestContext
 from hys_api.core.errors import ProblemException
 from hys_api.db.tenant import AuthorizationContext, apply_authorization_context
+from hys_api.modules.pilot.demo_seed import seed_demo
 from hys_api.modules.pilot.report import build_worksite_report_pdf
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
+    ContractorCreate,
     ControlResult,
     CorrectionCreate,
     DocumentCreate,
@@ -19,10 +22,12 @@ from hys_api.modules.pilot.schemas import (
     DocumentVersionCreate,
     MachineCreate,
     MachineInspectionCreate,
+    PersonCreate,
     SubjectKind,
     VerificationCreate,
     VerificationDecision,
     WorksiteCreate,
+    WorksiteFunctionalAssignmentCreate,
     derive_document_status,
 )
 from hys_api.modules.pilot.service import PilotService
@@ -56,9 +61,19 @@ PILOT_TABLES = {
     "severity_catalog_versions",
     "verifications",
     "worksite_contractors",
+    "worksite_functional_assignments",
     "worksite_documents",
     "worksite_stages",
 }
+
+DEMO_WORKSITE_ID = UUID("00000000-0000-4000-8000-000000001001")
+DEMO_PRINCIPAL_CONTRACTOR_ID = UUID("00000000-0000-4000-8000-000000001003")
+DEMO_PROJECT_PROFESSIONAL_ID = UUID("00000000-0000-4000-8000-000000001030")
+DEMO_AUDITOR_PERSON_ID = UUID("00000000-0000-4000-8000-000000001031")
+DEMO_CONTRACTOR_PROFESSIONAL_ID = UUID("00000000-0000-4000-8000-000000001032")
+DEMO_CONTRACTOR_TECHNICIAN_ID = UUID("00000000-0000-4000-8000-000000001033")
+DEMO_SECONDARY_CONTRACTOR_ID = UUID("00000000-0000-4000-8000-000000001034")
+DEMO_SECONDARY_SUBCONTRACTOR_ID = UUID("00000000-0000-4000-8000-000000001035")
 
 MUTABLE_TABLES = {
     "audit_controls",
@@ -71,6 +86,7 @@ MUTABLE_TABLES = {
     "people",
     "person_assignments",
     "worksite_contractors",
+    "worksite_functional_assignments",
 }
 
 APPEND_ONLY_TABLES = {
@@ -166,6 +182,371 @@ async def test_pilot_seed_rls_and_policies(migrated_database: str) -> None:
         assert "current_setting" in using_expression
         assert "organization_id" in check_expression
         assert "current_setting" in check_expression
+
+
+@pytest.mark.asyncio
+async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
+    migrated_database: str,
+) -> None:
+    previous_migration_url = os.environ.get("HYS_MIGRATION_DATABASE_URL")
+    os.environ["HYS_MIGRATION_DATABASE_URL"] = migrated_database
+    engine = create_async_engine(migrated_database)
+    try:
+        assert await seed_demo() is True
+        assert await seed_demo() is False
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "UPDATE machine_inspections SET actor_id = :legacy_actor "
+                    "WHERE id = :machine_inspection"
+                ),
+                {
+                    "legacy_actor": UUID("00000000-0000-0000-0000-000000000002"),
+                    "machine_inspection": UUID("00000000-0000-4000-8000-000000001009"),
+                },
+            )
+            await connection.execute(
+                text(
+                    "UPDATE audits SET author_actor_id = :legacy_actor, "
+                    "editor_actor_id = :legacy_actor, auditor_actor_id = :legacy_actor, "
+                    "status = 'EN_CURSO', finalized_at = NULL, audit_date = NULL "
+                    "WHERE id = :audit_id"
+                ),
+                {
+                    "legacy_actor": UUID("00000000-0000-0000-0000-000000000001"),
+                    "audit_id": UUID("00000000-0000-4000-8000-000000001017"),
+                },
+            )
+            await connection.execute(
+                text(
+                    "UPDATE worksite_functional_assignments SET actor_id = :legacy_actor "
+                    "WHERE id = :assignment_id"
+                ),
+                {
+                    "legacy_actor": UUID("00000000-0000-0000-0000-000000000004"),
+                    "assignment_id": UUID("00000000-0000-4000-8000-000000001041"),
+                },
+            )
+        assert await seed_demo() is False
+        async with engine.connect() as connection:
+            counts = (
+                await connection.execute(
+                    text(
+                        "SELECT "
+                        "(SELECT count(*) FROM people WHERE organization_id = :org "
+                        "AND id >= :people_start AND id < :people_end), "
+                        "(SELECT count(*) FROM person_assignments WHERE organization_id = :org "
+                        "AND worksite_id = :worksite), "
+                        "(SELECT count(*) FROM contractors WHERE organization_id = :org "
+                        "AND id >= :contractor_start AND id < :contractor_end), "
+                        "(SELECT count(*) FROM worksite_contractors WHERE organization_id = :org "
+                        "AND worksite_id = :worksite), "
+                        "(SELECT count(*) FROM worksite_functional_assignments "
+                        "WHERE organization_id = :org AND worksite_id = :worksite)"
+                    ),
+                    {
+                        "org": PILOT_ORGANIZATION_ID,
+                        "worksite": DEMO_WORKSITE_ID,
+                        "people_start": UUID("00000000-0000-4000-8000-000000001005"),
+                        "people_end": UUID("00000000-0000-4000-8000-000000001034"),
+                        "contractor_start": UUID("00000000-0000-4000-8000-000000001003"),
+                        "contractor_end": UUID("00000000-0000-4000-8000-000000001036"),
+                    },
+                )
+            ).one()
+            hierarchy = (
+                await connection.execute(
+                    text(
+                        "SELECT contractor_id, participation_type, parent_contracting_company_id "
+                        "FROM worksite_contractors WHERE organization_id = :org "
+                        "AND worksite_id = :worksite ORDER BY contractor_id"
+                    ),
+                    {"org": PILOT_ORGANIZATION_ID, "worksite": DEMO_WORKSITE_ID},
+                )
+            ).all()
+            assignments = (
+                await connection.execute(
+                    text(
+                        "SELECT actor_id, person_id, function_code, represented_contractor_id "
+                        "FROM worksite_functional_assignments WHERE organization_id = :org "
+                        "AND worksite_id = :worksite ORDER BY function_code"
+                    ),
+                    {"org": PILOT_ORGANIZATION_ID, "worksite": DEMO_WORKSITE_ID},
+                )
+            ).all()
+            audit = (
+                await connection.execute(
+                    text(
+                        "SELECT worksite_id, author_actor_id, editor_actor_id, auditor_actor_id, "
+                        "auditor_assignment_id, associated_professional_person_id, "
+                        "audit_date, status "
+                        "FROM audits WHERE id = :audit_id"
+                    ),
+                    {"audit_id": UUID("00000000-0000-4000-8000-000000001017")},
+                )
+            ).one()
+            actor_values = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT actor_id FROM machine_inspections "
+                            "WHERE id = :machine_inspection "
+                            "UNION ALL SELECT actor_id FROM document_versions "
+                            "WHERE id IN (:document_one, :document_two) "
+                            "UNION ALL SELECT recorded_by_actor_id FROM audit_controls "
+                            "WHERE audit_id = :audit_id "
+                            "UNION ALL SELECT created_by_actor_id FROM findings "
+                            "WHERE id = :finding_id "
+                            "UNION ALL SELECT actor_id FROM finding_events WHERE id = :event_id"
+                        ),
+                        {
+                            "machine_inspection": UUID("00000000-0000-4000-8000-000000001009"),
+                            "document_one": UUID("00000000-0000-4000-8000-000000001011"),
+                            "document_two": UUID("00000000-0000-4000-8000-000000001014"),
+                            "audit_id": UUID("00000000-0000-4000-8000-000000001017"),
+                            "finding_id": UUID("00000000-0000-4000-8000-000000001021"),
+                            "event_id": UUID("00000000-0000-4000-8000-000000001023"),
+                        },
+                    )
+                )
+                .scalars()
+                .all()
+            )
+    finally:
+        await engine.dispose()
+        if previous_migration_url is None:
+            os.environ.pop("HYS_MIGRATION_DATABASE_URL", None)
+        else:
+            os.environ["HYS_MIGRATION_DATABASE_URL"] = previous_migration_url
+
+    assert counts == (5, 5, 3, 3, 4)
+    assert hierarchy == [
+        (DEMO_PRINCIPAL_CONTRACTOR_ID, "PRINCIPAL", None),
+        (DEMO_SECONDARY_CONTRACTOR_ID, "CONTRACTOR", DEMO_PRINCIPAL_CONTRACTOR_ID),
+        (
+            DEMO_SECONDARY_SUBCONTRACTOR_ID,
+            "SUBCONTRACTOR",
+            DEMO_SECONDARY_CONTRACTOR_ID,
+        ),
+    ]
+    assert assignments == [
+        (PILOT_ACTORS["auditor"].id, DEMO_AUDITOR_PERSON_ID, "AUDITOR_DELEGADO_PROYECTO", None),
+        (
+            PILOT_ACTORS["responsable-suplente"].id,
+            DEMO_CONTRACTOR_PROFESSIONAL_ID,
+            "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+            DEMO_PRINCIPAL_CONTRACTOR_ID,
+        ),
+        (
+            PILOT_ACTORS["responsable"].id,
+            DEMO_PROJECT_PROFESSIONAL_ID,
+            "RESPONSABLE_HYS_PROYECTO",
+            None,
+        ),
+        (
+            PILOT_ACTORS["tecnico"].id,
+            DEMO_CONTRACTOR_TECHNICIAN_ID,
+            "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+            DEMO_PRINCIPAL_CONTRACTOR_ID,
+        ),
+    ]
+    assert audit == (
+        DEMO_WORKSITE_ID,
+        PILOT_ACTORS["auditor"].id,
+        PILOT_ACTORS["auditor"].id,
+        PILOT_ACTORS["auditor"].id,
+        UUID("00000000-0000-4000-8000-000000001039"),
+        DEMO_PROJECT_PROFESSIONAL_ID,
+        date(2026, 9, 4),
+        "FINALIZADA",
+    )
+    assert set(actor_values) <= {actor.id for actor in PILOT_ACTORS.values()}
+    assert UUID("00000000-0000-0000-0000-000000000001") not in actor_values
+
+
+@pytest.mark.asyncio
+async def test_functional_assignment_guards_profession_and_worksite_scope(
+    migrated_database: str,
+    app_database_url: str,
+) -> None:
+    del migrated_database
+    engine = create_async_engine(app_database_url)
+
+    async def run_as(actor_key: str, action):
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                await apply_authorization_context(
+                    session,
+                    AuthorizationContext(
+                        organization_id=PILOT_ORGANIZATION_ID,
+                        actor_id=PILOT_ACTORS[actor_key].id,
+                    ),
+                )
+                return await action(
+                    PilotService(PilotRequestContext(PILOT_ACTORS[actor_key], session))
+                )
+
+    try:
+        worksite = await run_as(
+            "tecnico",
+            lambda service: service.create_worksite(
+                WorksiteCreate(
+                    code="SYN-FUNCTION-GUARDS",
+                    name="Obra funciones sintéticas",
+                    jurisdiction="Provincia sintética",
+                )
+            ),
+        )
+        contractor = await run_as(
+            "tecnico",
+            lambda service: service.create_contractor(
+                worksite.id,
+                ContractorCreate(
+                    legal_name="Contratista funciones sintético",
+                    trade="Montaje sintético",
+                ),
+            ),
+        )
+        technician = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Técnico funciones sintético",
+                    contractor_id=contractor.id,
+                    profession_code="TECNICO_HYS",
+                ),
+            ),
+        )
+        responsible = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Responsable funciones sintético",
+                    contractor_id=contractor.id,
+                    profession_code="LICENCIADO_HYS",
+                ),
+            ),
+        )
+        secondary = await run_as(
+            "tecnico",
+            lambda service: service.create_contractor(
+                worksite.id,
+                ContractorCreate(
+                    legal_name="Contratista secundario funciones sintético",
+                    trade="Instalaciones sintéticas",
+                    participation_type="CONTRACTOR",
+                    parent_contracting_company_id=contractor.id,
+                ),
+            ),
+        )
+        with pytest.raises(ProblemException) as wrong_project_representation:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["responsable"].id,
+                        person_id=responsible.id,
+                        function_code="RESPONSABLE_HYS_PROYECTO",
+                        represented_contractor_id=contractor.id,
+                    ),
+                ),
+            )
+        with pytest.raises(ProblemException) as wrong_parent:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["tecnico"].id,
+                        person_id=technician.id,
+                        function_code="TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+                        represented_contractor_id=secondary.id,
+                    ),
+                ),
+            )
+        foreign_worksite = await run_as(
+            "tecnico",
+            lambda service: service.create_worksite(
+                WorksiteCreate(
+                    code="SYN-FUNCTION-FOREIGN",
+                    name="Obra función extranjera",
+                    jurisdiction="Provincia sintética",
+                )
+            ),
+        )
+        foreign_contractor = await run_as(
+            "tecnico",
+            lambda service: service.create_contractor(
+                foreign_worksite.id,
+                ContractorCreate(
+                    legal_name="Contratista función extranjera",
+                    trade="Servicios sintéticos",
+                ),
+            ),
+        )
+        foreign_person = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                foreign_worksite.id,
+                PersonCreate(
+                    display_name="Persona función extranjera",
+                    contractor_id=foreign_contractor.id,
+                    profession_code="TECNICO_HYS",
+                ),
+            ),
+        )
+        with pytest.raises(ProblemException) as wrong_profession:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["responsable"].id,
+                        person_id=technician.id,
+                        function_code="RESPONSABLE_HYS_PROYECTO",
+                    ),
+                ),
+            )
+
+        with pytest.raises(ProblemException) as wrong_worksite:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["tecnico"].id,
+                        person_id=foreign_person.id,
+                        function_code="TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+                        represented_contractor_id=contractor.id,
+                    ),
+                ),
+            )
+        with pytest.raises(ProblemException) as wrong_contractor:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["tecnico"].id,
+                        person_id=technician.id,
+                        function_code="TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+                        represented_contractor_id=foreign_contractor.id,
+                    ),
+                ),
+            )
+    finally:
+        await engine.dispose()
+
+    assert wrong_profession.value.code == "profession_function_mismatch"
+    assert wrong_project_representation.value.code == "project_function_contractor_forbidden"
+    assert wrong_parent.value.code == "principal_contractor_required"
+    assert wrong_worksite.value.status == 404
+    assert wrong_worksite.value.code == "pilot_resource_not_found"
+    assert wrong_contractor.value.status == 404
+    assert wrong_contractor.value.code == "pilot_resource_not_found"
 
 
 @pytest.mark.asyncio
@@ -605,6 +986,8 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         audit = await run_as("auditor", lambda service: service.start_audit(worksite.id))
+        assert audit.auditor_actor_id == PILOT_ACTORS["auditor"].id
+        assert audit.auditor_assignment_id is not None
         await run_as(
             "auditor",
             lambda service: service.create_audit_control(
@@ -673,6 +1056,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
         await engine.dispose()
 
     assert closed.status.value == "CERRADO"
+    assert closed.verifications[0].verified_by == PILOT_ACTORS["responsable-suplente"].id
     assert detail.metrics.findings.by_status["CERRADO"] == 1
     assert detail.metrics.documents.by_status["VIGENTE"] == 1
     assert detail.metrics.controls.numerator == 1

@@ -23,6 +23,7 @@ def test_openapi_exposes_only_the_initial_public_contract(app: FastAPI) -> None:
         "/api/v1/worksites/{worksite_id}/contractors",
         "/api/v1/worksites/{worksite_id}/documents",
         "/api/v1/worksites/{worksite_id}/documents/{document_id}/versions",
+        "/api/v1/worksites/{worksite_id}/functional-assignments",
         "/api/v1/worksites/{worksite_id}/machines",
         "/api/v1/worksites/{worksite_id}/machines/{machine_id}/inspections",
         "/api/v1/worksites/{worksite_id}/people",

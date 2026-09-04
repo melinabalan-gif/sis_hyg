@@ -60,6 +60,12 @@ class WorksiteContractor(Base):
         UniqueConstraint(
             "organization_id", "id", name="uq_worksite_contractors_organization_id_id"
         ),
+        UniqueConstraint(
+            "organization_id",
+            "worksite_id",
+            "contractor_id",
+            name="uq_worksite_contractors_org_worksite_contractor",
+        ),
         ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
@@ -75,12 +81,42 @@ class WorksiteContractor(Base):
             ["contractors.organization_id", "contractors.id"],
             name="fk_worksite_contractors_org_contractor_contractors",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "worksite_id", "parent_contracting_company_id"],
+            [
+                "worksite_contractors.organization_id",
+                "worksite_contractors.worksite_id",
+                "worksite_contractors.contractor_id",
+            ],
+            name="fk_worksite_contractors_org_worksite_parent",
+        ),
         CheckConstraint("ended_on IS NULL OR ended_on > started_on", name="valid_date_range"),
+        CheckConstraint(
+            "participation_type IN ('PRINCIPAL', 'CONTRACTOR', 'SUBCONTRACTOR')",
+            name="valid_participation_type",
+        ),
+        CheckConstraint(
+            "(participation_type = 'PRINCIPAL' AND parent_contracting_company_id IS NULL) OR "
+            "(participation_type <> 'PRINCIPAL' AND parent_contracting_company_id IS NOT NULL)",
+            name="parent_required_for_non_principal",
+        ),
+        CheckConstraint(
+            "parent_contracting_company_id IS NULL OR "
+            "parent_contracting_company_id <> contractor_id",
+            name="parent_cannot_be_self",
+        ),
         Index(
             "ix_worksite_contractors_org_worksite_ended",
             "organization_id",
             "worksite_id",
             "ended_on",
+        ),
+        Index(
+            "uq_worksite_contractors_one_principal",
+            "organization_id",
+            "worksite_id",
+            unique=True,
+            postgresql_where=text("participation_type = 'PRINCIPAL'"),
         ),
     )
 
@@ -88,6 +124,10 @@ class WorksiteContractor(Base):
     organization_id: Mapped[UUID] = mapped_column(nullable=False)
     worksite_id: Mapped[UUID] = mapped_column(nullable=False)
     contractor_id: Mapped[UUID] = mapped_column(nullable=False)
+    participation_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=text("'CONTRACTOR'")
+    )
+    parent_contracting_company_id: Mapped[UUID | None] = mapped_column()
     started_on: Mapped[date] = mapped_column(Date, nullable=False)
     ended_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(
@@ -159,6 +199,10 @@ class Person(Base):
         ),
         CheckConstraint("btrim(display_name) <> ''", name="display_name_not_blank"),
         CheckConstraint("btrim(role_label) <> ''", name="role_label_not_blank"),
+        CheckConstraint(
+            "profession_code IN ('LICENCIADO_HYS', 'TECNICO_HYS', 'CONTRATISTA', 'OTRA')",
+            name="valid_profession_code",
+        ),
         Index("ix_people_organization_id_deleted_at", "organization_id", "deleted_at"),
     )
 
@@ -166,6 +210,9 @@ class Person(Base):
     organization_id: Mapped[UUID] = mapped_column(nullable=False)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     role_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    profession_code: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=text("'OTRA'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -216,6 +263,85 @@ class PersonAssignment(Base):
     person_id: Mapped[UUID] = mapped_column(nullable=False)
     started_on: Mapped[date] = mapped_column(Date, nullable=False)
     ended_on: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class WorksiteFunctionalAssignment(Base):
+    """A synthetic actor's explicit function and scope at one worksite."""
+
+    __tablename__ = "worksite_functional_assignments"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "id", name="uq_worksite_functional_assignments_organization_id_id"
+        ),
+        UniqueConstraint(
+            "organization_id",
+            "worksite_id",
+            "id",
+            name="uq_worksite_functional_assignments_org_worksite_id",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name="fk_wfa_organization_id_organizations",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "worksite_id"],
+            ["worksites.organization_id", "worksites.id"],
+            name="fk_worksite_functional_assignments_org_worksite_worksites",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "person_id"],
+            ["people.organization_id", "people.id"],
+            name="fk_worksite_functional_assignments_org_person_people",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "represented_contractor_id"],
+            ["contractors.organization_id", "contractors.id"],
+            name="fk_worksite_functional_assignments_org_contractor_contractors",
+        ),
+        CheckConstraint(
+            "function_code IN ("
+            "'RESPONSABLE_HYS_PROYECTO', 'AUDITOR_DELEGADO_PROYECTO', "
+            "'RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL', "
+            "'TECNICO_HYS_CONTRATISTA_PRINCIPAL')",
+            name="valid_function_code",
+        ),
+        CheckConstraint(
+            "permission_scope IN ('WORKSITE', 'ORGANIZATION')",
+            name="valid_permission_scope",
+        ),
+        CheckConstraint("valid_to IS NULL OR valid_to > valid_from", name="valid_date_range"),
+        Index(
+            "ix_worksite_functional_assignments_org_worksite_actor_active",
+            "organization_id",
+            "worksite_id",
+            "actor_id",
+            "valid_to",
+        ),
+        Index(
+            "ix_worksite_functional_assignments_org_worksite_function",
+            "organization_id",
+            "worksite_id",
+            "function_code",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    organization_id: Mapped[UUID] = mapped_column(nullable=False)
+    worksite_id: Mapped[UUID] = mapped_column(nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    person_id: Mapped[UUID | None] = mapped_column()
+    function_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    represented_contractor_id: Mapped[UUID | None] = mapped_column()
+    permission_scope: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=text("'WORKSITE'")
+    )
+    valid_from: Mapped[date] = mapped_column(Date, nullable=False)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -676,6 +802,20 @@ class Audit(Base):
             ["control_catalog_versions.organization_id", "control_catalog_versions.id"],
             name="fk_audits_org_control_catalog_control_catalog_versions",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "worksite_id", "auditor_assignment_id"],
+            [
+                "worksite_functional_assignments.organization_id",
+                "worksite_functional_assignments.worksite_id",
+                "worksite_functional_assignments.id",
+            ],
+            name="fk_audits_org_worksite_auditor_assignment",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "associated_professional_person_id"],
+            ["people.organization_id", "people.id"],
+            name="fk_audits_org_professional_person_people",
+        ),
         CheckConstraint("status IN ('EN_CURSO', 'FINALIZADA')", name="valid_status"),
         CheckConstraint(
             "(status = 'EN_CURSO' AND finalized_at IS NULL) OR "
@@ -683,6 +823,12 @@ class Audit(Base):
             name="status_matches_finalized_at",
         ),
         Index("ix_audits_org_worksite_status", "organization_id", "worksite_id", "status"),
+        Index(
+            "ix_audits_org_worksite_auditor_assignment",
+            "organization_id",
+            "worksite_id",
+            "auditor_assignment_id",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -705,6 +851,10 @@ class Audit(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     control_catalog_version_id: Mapped[UUID] = mapped_column(nullable=False)
+    auditor_actor_id: Mapped[UUID | None] = mapped_column()
+    auditor_assignment_id: Mapped[UUID | None] = mapped_column()
+    associated_professional_person_id: Mapped[UUID | None] = mapped_column()
+    audit_date: Mapped[date | None] = mapped_column(Date)
 
 
 class AuditControl(Base):
@@ -989,4 +1139,5 @@ __all__ = [
     "Verification",
     "WorksiteContractor",
     "WorksiteDocument",
+    "WorksiteFunctionalAssignment",
 ]

@@ -1,5 +1,6 @@
 """Casos de uso transaccionales del primer flujo vertical sintético."""
 
+from collections.abc import Collection
 from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
 from functools import lru_cache
 from typing import Annotated, cast
@@ -7,11 +8,14 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement
 
 from hys_api.api.dependencies import (
+    PILOT_ACTORS,
     PILOT_ORGANIZATION_ID,
     PilotRequestContext,
     PilotRole,
@@ -42,14 +46,17 @@ from hys_api.modules.pilot.models import (
     Verification,
     WorksiteContractor,
     WorksiteDocument,
+    WorksiteFunctionalAssignment,
     WorksiteStage,
 )
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
     AuditControlMutationResponse,
     AuditControlView,
+    AuditStartCreate,
     AuditView,
     ContractorCreate,
+    ContractorParticipationType,
     ContractorView,
     CorrectionCreate,
     CorrectionView,
@@ -72,6 +79,8 @@ from hys_api.modules.pilot.schemas import (
     VerificationView,
     WorksiteCreate,
     WorksiteDetail,
+    WorksiteFunctionalAssignmentCreate,
+    WorksiteFunctionalAssignmentView,
     WorksiteStageCreate,
     WorksiteStageView,
     WorksiteSummary,
@@ -79,6 +88,15 @@ from hys_api.modules.pilot.schemas import (
     derive_worksite_metrics,
 )
 from hys_api.modules.worksites.models import Worksite
+
+_PROJECT_FUNCTIONS = frozenset({"RESPONSABLE_HYS_PROYECTO", "AUDITOR_DELEGADO_PROYECTO"})
+_CONTRACTOR_FUNCTIONS = frozenset(
+    {"RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL", "TECNICO_HYS_CONTRATISTA_PRINCIPAL"}
+)
+_ALL_FUNCTIONS = _PROJECT_FUNCTIONS | _CONTRACTOR_FUNCTIONS
+_RESPONSIBLE_FUNCTIONS = frozenset(
+    {"RESPONSABLE_HYS_PROYECTO", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"}
+)
 
 
 @lru_cache(maxsize=1)
@@ -134,11 +152,26 @@ class PilotService:
         self.session: AsyncSession = context.session
 
     async def list_worksites(self) -> list[WorksiteSummary]:
+        today = _today_in_argentina()
+        allowed_scope = self._allowed_assignment_scope()
         rows = await self.session.scalars(
             select(Worksite)
             .where(
                 Worksite.organization_id == PILOT_ORGANIZATION_ID,
                 Worksite.deleted_at.is_(None),
+                exists(
+                    select(WorksiteFunctionalAssignment.id).where(
+                        WorksiteFunctionalAssignment.organization_id == Worksite.organization_id,
+                        WorksiteFunctionalAssignment.worksite_id == Worksite.id,
+                        WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+                        allowed_scope,
+                        WorksiteFunctionalAssignment.valid_from <= today,
+                        or_(
+                            WorksiteFunctionalAssignment.valid_to.is_(None),
+                            WorksiteFunctionalAssignment.valid_to > today,
+                        ),
+                    )
+                ),
             )
             .order_by(Worksite.code, Worksite.id)
         )
@@ -158,11 +191,18 @@ class PilotService:
             "Ya existe una obra sintética con ese código.",
         )
         await self.session.refresh(worksite)
+        self._add_compatibility_assignments(worksite.id)
+        await self._flush_or_conflict(
+            "worksite_assignment_conflict",
+            "No se pudieron preparar las asignaciones sintéticas de la obra.",
+        )
         return self._worksite_summary(worksite)
 
     async def get_worksite_detail(self, worksite_id: UUID) -> WorksiteDetail:
         worksite = await self._get_worksite(worksite_id)
+        await self._require_current_function(worksite_id, _ALL_FUNCTIONS)
         contractors = await self._contractors_for_worksite(worksite_id)
+        functional_assignments = await self._functional_assignments_for_worksite(worksite_id)
         people = await self._people_for_worksite(worksite_id)
         documents = await self._documents_for_worksite(worksite)
         machines = await self._machines_for_worksite(worksite_id)
@@ -180,6 +220,7 @@ class PilotService:
             {
                 **self._worksite_summary(worksite).model_dump(),
                 "contractors": contractors,
+                "functional_assignments": functional_assignments,
                 "people": people,
                 "documents": documents,
                 "machines": machines,
@@ -222,6 +263,54 @@ class PilotService:
     ) -> ContractorView:
         self._require_resource_write()
         await self._get_active_worksite(worksite_id)
+        participation_type = payload.participation_type
+        if participation_type is None:
+            principal_id = await self.session.scalar(
+                select(WorksiteContractor.contractor_id)
+                .where(
+                    WorksiteContractor.organization_id == PILOT_ORGANIZATION_ID,
+                    WorksiteContractor.worksite_id == worksite_id,
+                    WorksiteContractor.participation_type == "PRINCIPAL",
+                )
+                .limit(1)
+            )
+            participation_type = (
+                ContractorParticipationType.CONTRACTOR
+                if principal_id is not None
+                else ContractorParticipationType.PRINCIPAL
+            )
+        parent_id = payload.parent_contracting_company_id
+        if participation_type is ContractorParticipationType.PRINCIPAL:
+            if parent_id is not None:
+                raise _unprocessable(
+                    "principal_parent_forbidden",
+                    "El contratista principal no puede depender de otra empresa.",
+                )
+        else:
+            if parent_id is None:
+                raise _unprocessable(
+                    "contractor_parent_required",
+                    "Un contratista no principal debe indicar su empresa contratante.",
+                )
+            parent = await self.session.scalar(
+                select(WorksiteContractor).where(
+                    WorksiteContractor.organization_id == PILOT_ORGANIZATION_ID,
+                    WorksiteContractor.worksite_id == worksite_id,
+                    WorksiteContractor.contractor_id == parent_id,
+                )
+            )
+            if parent is None:
+                raise _not_found()
+            expected_parent = (
+                ContractorParticipationType.PRINCIPAL
+                if participation_type is ContractorParticipationType.CONTRACTOR
+                else ContractorParticipationType.CONTRACTOR
+            )
+            if parent.participation_type != expected_parent.value:
+                raise _unprocessable(
+                    "invalid_contractor_parent",
+                    "La jerarquía exige CONTRACTOR bajo PRINCIPAL y SUBCONTRACTOR bajo CONTRACTOR.",
+                )
         contractor = Contractor(
             organization_id=PILOT_ORGANIZATION_ID,
             legal_name=payload.legal_name,
@@ -236,6 +325,8 @@ class PilotService:
             organization_id=PILOT_ORGANIZATION_ID,
             worksite_id=worksite_id,
             contractor_id=contractor.id,
+            participation_type=participation_type.value,
+            parent_contracting_company_id=parent_id,
             started_on=payload.started_on or _today_in_argentina(),
             ended_on=payload.ended_on,
         )
@@ -261,6 +352,7 @@ class PilotService:
             organization_id=PILOT_ORGANIZATION_ID,
             display_name=payload.display_name,
             role_label=payload.role_label,
+            profession_code=payload.profession_code.value,
         )
         self.session.add(person)
         await self.session.flush()
@@ -528,9 +620,30 @@ class PilotService:
 
         return await self.create_machine_inspection(worksite_id, machine_id, payload)
 
-    async def start_audit(self, worksite_id: UUID) -> AuditView:
+    async def start_audit(
+        self,
+        worksite_id: UUID,
+        payload: AuditStartCreate | None = None,
+    ) -> AuditView:
         self._require_audit_write()
         await self._get_active_worksite(worksite_id)
+        auditor_assignment = await self._resolve_auditor_assignment(worksite_id, payload)
+        professional_person_id = await self.session.scalar(
+            select(WorksiteFunctionalAssignment.person_id)
+            .where(
+                WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteFunctionalAssignment.worksite_id == worksite_id,
+                WorksiteFunctionalAssignment.function_code == "RESPONSABLE_HYS_PROYECTO",
+                WorksiteFunctionalAssignment.person_id.is_not(None),
+                WorksiteFunctionalAssignment.valid_from <= _today_in_argentina(),
+                or_(
+                    WorksiteFunctionalAssignment.valid_to.is_(None),
+                    WorksiteFunctionalAssignment.valid_to > _today_in_argentina(),
+                ),
+            )
+            .order_by(WorksiteFunctionalAssignment.valid_from, WorksiteFunctionalAssignment.id)
+            .limit(1)
+        )
         catalog = await self.session.scalar(
             select(ControlCatalogVersion)
             .where(
@@ -555,9 +668,13 @@ class PilotService:
             organization_id=PILOT_ORGANIZATION_ID,
             worksite_id=worksite_id,
             status="EN_CURSO",
-            author_actor_id=self.context.actor.id,
-            editor_actor_id=self.context.actor.id,
+            author_actor_id=auditor_assignment.actor_id,
+            editor_actor_id=auditor_assignment.actor_id,
             control_catalog_version_id=catalog.id,
+            auditor_actor_id=auditor_assignment.actor_id,
+            auditor_assignment_id=auditor_assignment.id,
+            associated_professional_person_id=professional_person_id,
+            audit_date=_today_in_argentina(),
         )
         self.session.add(audit)
         await self._flush_or_conflict(
@@ -574,7 +691,7 @@ class PilotService:
     ) -> AuditControlMutationResponse:
         self._require_audit_write()
         audit = await self._get_audit(audit_id, for_update=True)
-        self._require_audit_editor(audit)
+        await self._require_audit_editor(audit)
         if audit.status != "EN_CURSO":
             raise _conflict(
                 "audit_already_finalized",
@@ -660,7 +777,7 @@ class PilotService:
     async def finalize_audit(self, audit_id: UUID) -> AuditView:
         self._require_audit_write()
         audit = await self._get_audit(audit_id, for_update=True)
-        self._require_audit_editor(audit)
+        await self._require_audit_editor(audit)
         if audit.status != "EN_CURSO":
             raise _conflict("audit_already_finalized", "La auditoría ya está finalizada.")
         catalog_controls = await self._catalog_controls_for_audit(audit)
@@ -693,6 +810,7 @@ class PilotService:
     ) -> FindingView:
         self._require_correction_write()
         finding = await self._get_finding(finding_id, for_update=True)
+        await self._require_current_function(finding.worksite_id, _ALL_FUNCTIONS)
         if finding.status not in {"ABIERTO", "EN_CORRECCION"}:
             raise _conflict(
                 "finding_not_correctable",
@@ -724,6 +842,7 @@ class PilotService:
     async def submit_verification(self, finding_id: UUID) -> FindingView:
         self._require_correction_write()
         finding = await self._get_finding(finding_id, for_update=True)
+        await self._require_current_function(finding.worksite_id, _ALL_FUNCTIONS)
         if finding.status != "EN_CORRECCION":
             raise _conflict(
                 "finding_not_ready_for_verification",
@@ -784,6 +903,10 @@ class PilotService:
                 "segregation_of_duties",
                 "El creador del desvío o autor de la corrección no puede verificarla.",
             )
+        await self._require_current_function(
+            finding.worksite_id,
+            {"RESPONSABLE_HYS_PROYECTO", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"},
+        )
         previous_status = finding.status
         if payload.decision is VerificationDecision.ACEPTADA:
             target_status = "CERRADO"
@@ -840,14 +963,224 @@ class PilotService:
             PilotRole.RESPONSABLE_HYS,
         )
 
-    def _require_audit_editor(self, audit: Audit) -> None:
-        if audit.editor_actor_id != self.context.actor.id:
+    async def _require_audit_editor(self, audit: Audit) -> None:
+        if audit.editor_actor_id != self.context.actor.id or (
+            audit.auditor_actor_id is not None and audit.auditor_actor_id != self.context.actor.id
+        ):
             raise ProblemException(
                 status=403,
                 code="audit_editor_required",
                 title="Acceso denegado",
                 detail="Sólo el editor de la auditoría puede modificarla o finalizarla.",
             )
+        if audit.auditor_assignment_id is not None:
+            await self._require_current_function(
+                audit.worksite_id,
+                {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"},
+                assignment_id=audit.auditor_assignment_id,
+            )
+
+    def _add_compatibility_assignments(self, worksite_id: UUID) -> None:
+        """Keep legacy selectors usable for an otherwise empty worksite only."""
+
+        assignments = (
+            ("auditor", "AUDITOR_DELEGADO_PROYECTO"),
+            ("tecnico", "TECNICO_HYS_CONTRATISTA_PRINCIPAL"),
+            ("responsable", "RESPONSABLE_HYS_PROYECTO"),
+            ("responsable-suplente", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"),
+        )
+        for actor_key, function_code in assignments:
+            actor = PILOT_ACTORS[actor_key]
+            self.session.add(
+                WorksiteFunctionalAssignment(
+                    organization_id=PILOT_ORGANIZATION_ID,
+                    worksite_id=worksite_id,
+                    actor_id=actor.id,
+                    function_code=function_code,
+                    valid_from=_today_in_argentina(),
+                )
+            )
+
+    async def _resolve_auditor_assignment(
+        self,
+        worksite_id: UUID,
+        payload: AuditStartCreate | None,
+    ) -> WorksiteFunctionalAssignment:
+        today = _today_in_argentina()
+        statement = select(WorksiteFunctionalAssignment).where(
+            WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+            WorksiteFunctionalAssignment.worksite_id == worksite_id,
+            WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+            WorksiteFunctionalAssignment.function_code.in_(
+                ("AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO")
+            ),
+            WorksiteFunctionalAssignment.valid_from <= today,
+            or_(
+                WorksiteFunctionalAssignment.valid_to.is_(None),
+                WorksiteFunctionalAssignment.valid_to > today,
+            ),
+        )
+        if payload is not None and payload.auditor_assignment_id is not None:
+            statement = statement.where(
+                WorksiteFunctionalAssignment.id == payload.auditor_assignment_id
+            )
+        assignment = await self.session.scalar(
+            statement.order_by(WorksiteFunctionalAssignment.id).limit(1)
+        )
+        if assignment is None:
+            raise ProblemException(
+                status=403,
+                code="pilot_assignment_required",
+                title="Asignación funcional requerida",
+                detail="El actor no tiene una asignación de auditoría vigente para esta obra.",
+            )
+        self._check_assignment_scope(assignment)
+        return assignment
+
+    async def _require_current_function(
+        self,
+        worksite_id: UUID,
+        function_codes: Collection[str],
+        *,
+        assignment_id: UUID | None = None,
+    ) -> WorksiteFunctionalAssignment:
+        today = _today_in_argentina()
+        statement = select(WorksiteFunctionalAssignment).where(
+            WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+            WorksiteFunctionalAssignment.worksite_id == worksite_id,
+            WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+            WorksiteFunctionalAssignment.function_code.in_(function_codes),
+            WorksiteFunctionalAssignment.valid_from <= today,
+            or_(
+                WorksiteFunctionalAssignment.valid_to.is_(None),
+                WorksiteFunctionalAssignment.valid_to > today,
+            ),
+        )
+        if assignment_id is not None:
+            statement = statement.where(WorksiteFunctionalAssignment.id == assignment_id)
+        assignment = await self.session.scalar(
+            statement.order_by(
+                WorksiteFunctionalAssignment.valid_from, WorksiteFunctionalAssignment.id
+            ).limit(1)
+        )
+        if assignment is None:
+            raise ProblemException(
+                status=403,
+                code="pilot_assignment_required",
+                title="Asignación funcional requerida",
+                detail="El actor no tiene la función vigente para esta obra.",
+            )
+        self._check_assignment_scope(assignment)
+        return assignment
+
+    def _check_assignment_scope(self, assignment: WorksiteFunctionalAssignment) -> None:
+        if (
+            assignment.permission_scope == "ORGANIZATION"
+            and self.context.actor.permission_scope != "ORGANIZATION"
+        ):
+            raise ProblemException(
+                status=403,
+                code="pilot_scope_denied",
+                title="Acceso denegado",
+                detail="El alcance de la asignación excede el alcance del actor.",
+            )
+
+    async def create_functional_assignment(
+        self,
+        worksite_id: UUID,
+        payload: WorksiteFunctionalAssignmentCreate,
+    ) -> WorksiteFunctionalAssignmentView:
+        self._require_resource_write()
+        await self._get_active_worksite(worksite_id)
+        if payload.actor_id not in {actor.id for actor in PILOT_ACTORS.values()}:
+            raise _unprocessable(
+                "invalid_pilot_actor", "El actor debe pertenecer al adaptador sintético."
+            )
+        valid_from = payload.valid_from or _today_in_argentina()
+        if payload.valid_to is not None and payload.valid_to <= valid_from:
+            raise _unprocessable(
+                "invalid_functional_assignment_interval",
+                "valid_to debe ser posterior a valid_from.",
+            )
+        if payload.permission_scope.value == "ORGANIZATION" and (
+            self.context.actor.permission_scope != "ORGANIZATION"
+        ):
+            raise ProblemException(
+                status=403,
+                code="pilot_scope_denied",
+                title="Acceso denegado",
+                detail="El alcance de la asignación excede el alcance del actor.",
+            )
+
+        function_code = payload.function_code.value
+        if payload.person_id is None:
+            raise _unprocessable(
+                "functional_assignment_person_required",
+                "Una asignación funcional debe identificar a la persona del actor.",
+            )
+        person = await self._get_person_for_worksite(
+            worksite_id,
+            payload.person_id,
+            on_date=valid_from,
+        )
+        if person is None:
+            raise _not_found()
+        expected_profession = (
+            "LICENCIADO_HYS" if function_code in _RESPONSIBLE_FUNCTIONS else "TECNICO_HYS"
+        )
+        if person.profession_code != expected_profession:
+            raise _unprocessable(
+                "profession_function_mismatch",
+                "La profesión de la persona no coincide con la función funcional solicitada.",
+            )
+
+        if function_code in _PROJECT_FUNCTIONS:
+            if payload.represented_contractor_id is not None:
+                raise _unprocessable(
+                    "project_function_contractor_forbidden",
+                    "Una función de proyecto no puede representar a un contratista.",
+                )
+        elif payload.represented_contractor_id is None:
+            raise _unprocessable(
+                "contractor_principal_required",
+                "Una función del contratista principal debe representar al participante principal.",
+            )
+        else:
+            participant = await self._get_worksite_contractor_assignment(
+                worksite_id,
+                payload.represented_contractor_id,
+                on_date=valid_from,
+            )
+            if participant.participation_type != "PRINCIPAL":
+                raise _unprocessable(
+                    "principal_contractor_required",
+                    "La función sólo puede representar al contratista PRINCIPAL de la obra.",
+                )
+        assignment = WorksiteFunctionalAssignment(
+            organization_id=PILOT_ORGANIZATION_ID,
+            worksite_id=worksite_id,
+            actor_id=payload.actor_id,
+            person_id=payload.person_id,
+            function_code=payload.function_code.value,
+            represented_contractor_id=payload.represented_contractor_id,
+            permission_scope=payload.permission_scope.value,
+            valid_from=valid_from,
+            valid_to=payload.valid_to,
+        )
+        self.session.add(assignment)
+        await self._flush_or_conflict(
+            "functional_assignment_conflict",
+            "No se pudo guardar la asignación funcional de la obra.",
+        )
+        await self.session.refresh(assignment)
+        return await self._functional_assignment_view(assignment)
+
+    async def list_functional_assignments(
+        self, worksite_id: UUID
+    ) -> list[WorksiteFunctionalAssignmentView]:
+        await self._get_worksite(worksite_id)
+        await self._require_current_function(worksite_id, _ALL_FUNCTIONS)
+        return await self._functional_assignments_for_worksite(worksite_id)
 
     async def _flush_or_conflict(self, code: str, detail: str) -> None:
         try:
@@ -855,12 +1188,44 @@ class PilotService:
         except IntegrityError as exc:
             raise _conflict(code, detail) from exc
 
-    async def _get_worksite(self, worksite_id: UUID, *, for_update: bool = False) -> Worksite:
+    def _allowed_assignment_scope(self) -> ColumnElement[bool]:
+        allowed_scope = WorksiteFunctionalAssignment.permission_scope == "WORKSITE"
+        if self.context.actor.permission_scope == "ORGANIZATION":
+            return or_(
+                allowed_scope,
+                WorksiteFunctionalAssignment.permission_scope == "ORGANIZATION",
+            )
+        return allowed_scope
+
+    async def _get_worksite(
+        self,
+        worksite_id: UUID,
+        *,
+        for_update: bool = False,
+        require_scope: bool = False,
+    ) -> Worksite:
         statement = select(Worksite).where(
             Worksite.organization_id == PILOT_ORGANIZATION_ID,
             Worksite.id == worksite_id,
             Worksite.deleted_at.is_(None),
         )
+        if require_scope:
+            today = _today_in_argentina()
+            statement = statement.where(
+                exists(
+                    select(WorksiteFunctionalAssignment.id).where(
+                        WorksiteFunctionalAssignment.organization_id == Worksite.organization_id,
+                        WorksiteFunctionalAssignment.worksite_id == Worksite.id,
+                        WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+                        self._allowed_assignment_scope(),
+                        WorksiteFunctionalAssignment.valid_from <= today,
+                        or_(
+                            WorksiteFunctionalAssignment.valid_to.is_(None),
+                            WorksiteFunctionalAssignment.valid_to > today,
+                        ),
+                    )
+                )
+            )
         if for_update:
             statement = statement.with_for_update()
         worksite = await self.session.scalar(statement)
@@ -874,7 +1239,11 @@ class PilotService:
         *,
         for_update: bool = False,
     ) -> Worksite:
-        worksite = await self._get_worksite(worksite_id, for_update=for_update)
+        worksite = await self._get_worksite(
+            worksite_id,
+            for_update=for_update,
+            require_scope=True,
+        )
         if worksite.status != "ACTIVE":
             raise _conflict(
                 "worksite_archived",
@@ -941,6 +1310,78 @@ class PilotService:
         if contractor is None:
             raise _not_found()
         return contractor
+
+    async def _get_worksite_contractor_assignment(
+        self,
+        worksite_id: UUID,
+        contractor_id: UUID,
+        *,
+        on_date: date | None = None,
+    ) -> WorksiteContractor:
+        statement = select(WorksiteContractor).where(
+            WorksiteContractor.organization_id == PILOT_ORGANIZATION_ID,
+            WorksiteContractor.worksite_id == worksite_id,
+            WorksiteContractor.contractor_id == contractor_id,
+        )
+        if on_date is not None:
+            statement = statement.where(
+                WorksiteContractor.started_on <= on_date,
+                or_(
+                    WorksiteContractor.ended_on.is_(None),
+                    WorksiteContractor.ended_on > on_date,
+                ),
+            )
+        participant = await self.session.scalar(statement.limit(1))
+        if participant is None:
+            raise _not_found()
+        return participant
+
+    async def _get_person_for_worksite(
+        self,
+        worksite_id: UUID,
+        person_id: UUID,
+        *,
+        on_date: date | None = None,
+    ) -> Person | None:
+        statement = (
+            select(Person)
+            .join(
+                PersonAssignment,
+                and_(
+                    PersonAssignment.organization_id == Person.organization_id,
+                    PersonAssignment.person_id == Person.id,
+                ),
+            )
+            .join(
+                WorksiteContractor,
+                and_(
+                    WorksiteContractor.organization_id == PersonAssignment.organization_id,
+                    WorksiteContractor.worksite_id == PersonAssignment.worksite_id,
+                    WorksiteContractor.contractor_id == PersonAssignment.contractor_id,
+                ),
+            )
+            .where(
+                Person.organization_id == PILOT_ORGANIZATION_ID,
+                Person.id == person_id,
+                Person.deleted_at.is_(None),
+                PersonAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                PersonAssignment.worksite_id == worksite_id,
+            )
+        )
+        if on_date is not None:
+            statement = statement.where(
+                PersonAssignment.started_on <= on_date,
+                or_(
+                    PersonAssignment.ended_on.is_(None),
+                    PersonAssignment.ended_on > on_date,
+                ),
+                WorksiteContractor.started_on <= on_date,
+                or_(
+                    WorksiteContractor.ended_on.is_(None),
+                    WorksiteContractor.ended_on > on_date,
+                ),
+            )
+        return cast(Person | None, await self.session.scalar(statement.limit(1)))
 
     async def _get_severity(self, severity_code: str | None) -> SeverityCatalogVersion:
         if severity_code is None:
@@ -1146,14 +1587,22 @@ class PilotService:
         return None
 
     async def _contractors_for_worksite(self, worksite_id: UUID) -> list[ContractorView]:
+        parent = aliased(Contractor)
         rows = (
             await self.session.execute(
-                select(Contractor, WorksiteContractor)
+                select(Contractor, WorksiteContractor, parent.legal_name)
                 .join(
                     WorksiteContractor,
                     and_(
                         WorksiteContractor.organization_id == Contractor.organization_id,
                         WorksiteContractor.contractor_id == Contractor.id,
+                    ),
+                )
+                .outerjoin(
+                    parent,
+                    and_(
+                        parent.organization_id == WorksiteContractor.organization_id,
+                        parent.id == WorksiteContractor.parent_contracting_company_id,
                     ),
                 )
                 .where(
@@ -1164,7 +1613,77 @@ class PilotService:
                 .order_by(Contractor.legal_name, WorksiteContractor.started_on)
             )
         ).all()
-        return [self._contractor_view(contractor, assignment) for contractor, assignment in rows]
+        return [
+            self._contractor_view(contractor, assignment, parent_name)
+            for contractor, assignment, parent_name in rows
+        ]
+
+    async def _functional_assignments_for_worksite(
+        self, worksite_id: UUID
+    ) -> list[WorksiteFunctionalAssignmentView]:
+        assignments = await self.session.scalars(
+            select(WorksiteFunctionalAssignment)
+            .where(
+                WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteFunctionalAssignment.worksite_id == worksite_id,
+            )
+            .order_by(
+                WorksiteFunctionalAssignment.function_code,
+                WorksiteFunctionalAssignment.valid_from,
+                WorksiteFunctionalAssignment.id,
+            )
+        )
+        return [await self._functional_assignment_view(item) for item in assignments]
+
+    async def _functional_assignment_view(
+        self, assignment: WorksiteFunctionalAssignment
+    ) -> WorksiteFunctionalAssignmentView:
+        person = None
+        if assignment.person_id is not None:
+            person = await self.session.scalar(
+                select(Person).where(
+                    Person.organization_id == PILOT_ORGANIZATION_ID,
+                    Person.id == assignment.person_id,
+                )
+            )
+        contractor = None
+        if assignment.represented_contractor_id is not None:
+            contractor = await self.session.scalar(
+                select(Contractor).where(
+                    Contractor.organization_id == PILOT_ORGANIZATION_ID,
+                    Contractor.id == assignment.represented_contractor_id,
+                )
+            )
+        actor = next(
+            (
+                candidate
+                for candidate in PILOT_ACTORS.values()
+                if candidate.id == assignment.actor_id
+            ),
+            None,
+        )
+        profession_code = (
+            person.profession_code if person else actor.profession_code if actor else None
+        )
+        return WorksiteFunctionalAssignmentView.model_validate(
+            {
+                "id": assignment.id,
+                "worksite_id": assignment.worksite_id,
+                "actor_id": assignment.actor_id,
+                "actor_key": actor.key if actor else "legacy",
+                "actor_label": actor.label if actor else "Actor sintético legado",
+                "person_id": assignment.person_id,
+                "person_name": person.display_name if person else None,
+                "profession_code": profession_code,
+                "function_code": assignment.function_code,
+                "represented_contractor_id": assignment.represented_contractor_id,
+                "represented_contractor_name": contractor.legal_name if contractor else None,
+                "permission_scope": assignment.permission_scope,
+                "valid_from": assignment.valid_from,
+                "valid_to": assignment.valid_to,
+                "version": assignment.version,
+            }
+        )
 
     async def _people_for_worksite(self, worksite_id: UUID) -> list[PersonView]:
         rows = (
@@ -1495,6 +2014,11 @@ class PilotService:
                 "status": audit.status,
                 "author_id": audit.author_actor_id,
                 "editor_id": audit.editor_actor_id,
+                "worksite_id": audit.worksite_id,
+                "auditor_actor_id": audit.auditor_actor_id,
+                "auditor_assignment_id": audit.auditor_assignment_id,
+                "associated_professional_person_id": audit.associated_professional_person_id,
+                "audit_date": audit.audit_date,
                 "started_at": audit.started_at,
                 "finalized_at": audit.finalized_at,
                 "available_controls": [
@@ -1638,6 +2162,7 @@ class PilotService:
     def _contractor_view(
         contractor: Contractor,
         assignment: WorksiteContractor,
+        parent_name: str | None = None,
     ) -> ContractorView:
         return ContractorView.model_validate(
             {
@@ -1647,6 +2172,9 @@ class PilotService:
                 "trade": contractor.trade,
                 "started_on": assignment.started_on,
                 "ended_on": assignment.ended_on,
+                "participation_type": assignment.participation_type or "CONTRACTOR",
+                "parent_contracting_company_id": assignment.parent_contracting_company_id,
+                "parent_contracting_company_name": parent_name,
             }
         )
 
@@ -1659,6 +2187,7 @@ class PilotService:
                 "display_name": person.display_name,
                 "contractor_id": assignment.contractor_id,
                 "role_label": person.role_label,
+                "profession_code": person.profession_code or "OTRA",
                 "started_on": assignment.started_on,
                 "ended_on": assignment.ended_on,
             }

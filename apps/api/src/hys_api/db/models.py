@@ -24,6 +24,7 @@ from hys_api.modules.pilot.models import (
     Verification,
     WorksiteContractor,
     WorksiteDocument,
+    WorksiteFunctionalAssignment,
     WorksiteStage,
 )
 from hys_api.modules.worksites.models import Worksite
@@ -53,5 +54,6 @@ __all__ = [
     "Worksite",
     "WorksiteContractor",
     "WorksiteDocument",
+    "WorksiteFunctionalAssignment",
     "WorksiteStage",
 ]

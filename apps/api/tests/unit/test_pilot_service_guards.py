@@ -17,6 +17,7 @@ from hys_api.modules.pilot.models import (
     Machine,
     MachineInspection,
     MachineWorksiteAssignment,
+    WorksiteFunctionalAssignment,
 )
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
@@ -37,6 +38,24 @@ def _service(actor_key: str) -> tuple[PilotService, MagicMock]:
     session.flush = AsyncMock()
     context = PilotRequestContext(actor=PILOT_ACTORS[actor_key], session=session)
     return PilotService(context), session
+
+
+def test_legacy_compatibility_selector_maps_to_contractor_responsible_function() -> None:
+    service, session = _service("tecnico")
+    service._add_compatibility_assignments(uuid4())
+
+    assignments = [
+        call.args[0]
+        for call in session.add.call_args_list
+        if isinstance(call.args[0], WorksiteFunctionalAssignment)
+    ]
+    suplente = next(
+        assignment
+        for assignment in assignments
+        if assignment.actor_id == PILOT_ACTORS["responsable-suplente"].id
+    )
+
+    assert suplente.function_code == "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
 
 
 def _audit(*, editor_id: UUID, status: str) -> Audit:

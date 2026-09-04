@@ -22,6 +22,10 @@ sesión válida + MFA verificado + usuario activo + mismo organization_id
   de los permisos de lectura común.
 - Las decisiones de estado se validan en backend y se registran en `audit_log`.
 
+En el piloto, el selector `X-Pilot-Actor` es sólo un adaptador de identidad
+sintética. La decisión efectiva agrega una asignación funcional vigente para la
+obra; profesión, función, empresa representada y alcance se evalúan por separado.
+
 ## 2. Roles
 
 Abreviaturas: `ADM` Administrador, `TEC` Técnico H&S, `AUD` Auditor,
@@ -67,6 +71,12 @@ Abreviaturas: `ADM` Administrador, `TEC` Técnico H&S, `AUD` Auditor,
 | `regulatory.review` | — | — | — | — | ✓ | ✓ | comentarios append-only |
 | `regulatory.publish` | — | — | — | — | — | ◐ | distinto del creador y rol deshabilitado sin validador |
 | `templates.write` | ✓ | — | — | ✓ | — | — | no HTML arbitrario; nueva versión |
+
+Las asignaciones funcionales admitidas son `RESPONSABLE_HYS_PROYECTO`,
+`AUDITOR_DELEGADO_PROYECTO`, `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL` y
+`TECNICO_HYS_CONTRATISTA_PRINCIPAL`. El selector legado se conserva para la demo,
+pero no concede acceso a una obra sin una asignación persistida y vigente;
+`responsable-suplente` se resuelve como `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL`.
 
 `◐` significa que el rol base no basta: requiere una concesión explícita adicional.
 

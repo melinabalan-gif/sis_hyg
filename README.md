@@ -13,10 +13,10 @@ El recorrido se apoya en contratistas, personal, etapas y maquinarias sintética
 cuando la obra los necesita.
 
 La interfaz permite crear y volver a abrir una obra. Cada operación persiste en
-PostgreSQL y aplica el contexto de organización y las políticas RLS. Los cuatro
-actores seleccionables son identidades fijas del piloto para recorrer los
-permisos de Técnico, Auditor y Responsable H&S; no constituyen autenticación de
-producción.
+PostgreSQL y aplica el contexto de organización, las asignaciones funcionales y
+las políticas RLS. Los cinco actores seleccionables son identidades fijas del
+piloto para recorrer los permisos de Técnico, Auditor y Responsable H&S; no
+constituyen autenticación de producción.
 
 Reglas verificables de este corte:
 
@@ -76,8 +76,8 @@ raíz con `HYS_MIGRATION_DATABASE_URL` disponible:
 uv run --project apps/api python -m hys_api.modules.pilot.demo_seed
 ```
 
-El comando es idempotente por UUID y sólo crea datos sintéticos si la obra demo
-todavía no existe.
+El comando es idempotente por UUID: repara las filas sintéticas fijas y su
+metadato de auditoría sin reiniciar la historia de correcciones y verificaciones.
 
 Alembic usa `HYS_MIGRATION_DATABASE_URL` con el rol propietario. La API usa
 `HYS_DATABASE_URL` con el rol fijo `hys_app`, sin superusuario ni `BYPASSRLS`;

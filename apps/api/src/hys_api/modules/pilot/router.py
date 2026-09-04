@@ -11,6 +11,7 @@ from hys_api.modules.pilot.report import build_worksite_report_pdf
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
     AuditControlMutationResponse,
+    AuditStartCreate,
     AuditView,
     ContractorCreate,
     ContractorView,
@@ -28,6 +29,8 @@ from hys_api.modules.pilot.schemas import (
     VerificationCreate,
     WorksiteCreate,
     WorksiteDetail,
+    WorksiteFunctionalAssignmentCreate,
+    WorksiteFunctionalAssignmentView,
     WorksiteStageCreate,
     WorksiteStageView,
     WorksiteSummary,
@@ -142,6 +145,34 @@ async def create_worksite_contractor(
     return await service.create_contractor(worksite_id, payload)
 
 
+@router.get(
+    "/worksites/{worksite_id}/functional-assignments",
+    operation_id="pilot_list_worksite_functional_assignments",
+    response_model=list[WorksiteFunctionalAssignmentView],
+    responses=COMMON_ERRORS,
+)
+async def list_worksite_functional_assignments(
+    worksite_id: UUID,
+    service: PilotServiceDependency,
+) -> list[WorksiteFunctionalAssignmentView]:
+    return await service.list_functional_assignments(worksite_id)
+
+
+@router.post(
+    "/worksites/{worksite_id}/functional-assignments",
+    operation_id="pilot_create_worksite_functional_assignment",
+    response_model=WorksiteFunctionalAssignmentView,
+    status_code=status.HTTP_201_CREATED,
+    responses=COMMON_ERRORS,
+)
+async def create_worksite_functional_assignment(
+    worksite_id: UUID,
+    payload: WorksiteFunctionalAssignmentCreate,
+    service: PilotServiceDependency,
+) -> WorksiteFunctionalAssignmentView:
+    return await service.create_functional_assignment(worksite_id, payload)
+
+
 @router.post(
     "/worksites/{worksite_id}/people",
     operation_id="pilot_create_worksite_person",
@@ -229,8 +260,9 @@ async def create_machine_inspection(
 async def start_worksite_audit(
     worksite_id: UUID,
     service: PilotServiceDependency,
+    payload: AuditStartCreate | None = None,
 ) -> AuditView:
-    return await service.start_audit(worksite_id)
+    return await service.start_audit(worksite_id, payload)
 
 
 @router.post(

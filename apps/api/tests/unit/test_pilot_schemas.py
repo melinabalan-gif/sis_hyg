@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
     AuditControlView,
+    AuditStartCreate,
     AuditView,
     ControlResult,
     DocumentDisplayStatus,
@@ -17,6 +18,7 @@ from hys_api.modules.pilot.schemas import (
     MachineInspectionCreate,
     MachineView,
     WorksiteCreate,
+    WorksiteFunctionalAssignmentCreate,
     WorksiteStageCreate,
     derive_document_status,
     derive_worksite_metrics,
@@ -160,6 +162,27 @@ def test_worksite_stage_rejects_inverted_interval() -> None:
             name="Preparación",
             started_on=date(2026, 9, 30),
             ended_on=date(2026, 9, 1),
+        )
+
+
+def test_functional_assignment_keeps_function_and_profession_separate() -> None:
+    assignment = WorksiteFunctionalAssignmentCreate(
+        actor_id=uuid4(),
+        function_code="AUDITOR_DELEGADO_PROYECTO",
+        permission_scope="WORKSITE",
+        valid_from=date(2026, 9, 1),
+    )
+    assert assignment.function_code.value == "AUDITOR_DELEGADO_PROYECTO"
+    assert AuditStartCreate(auditor_assignment_id=assignment.actor_id).auditor_assignment_id
+
+
+def test_functional_assignment_rejects_inverted_validity() -> None:
+    with pytest.raises(ValidationError, match="valid_to debe ser posterior"):
+        WorksiteFunctionalAssignmentCreate(
+            actor_id=uuid4(),
+            function_code="TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+            valid_from=date(2026, 9, 30),
+            valid_to=date(2026, 9, 1),
         )
 
 

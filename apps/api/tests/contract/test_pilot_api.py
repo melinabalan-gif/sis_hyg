@@ -228,6 +228,7 @@ async def test_worksite_detail_has_direct_aggregate_arrays(client, pilot_app: Fa
         "updated_at",
         "jurisdiction",
         "contractors",
+        "functional_assignments",
         "people",
         "documents",
         "machines",
