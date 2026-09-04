@@ -1,0 +1,2 @@
+Las migraciones son la única autoridad para modificar el esquema. El runtime no crea tablas.
+

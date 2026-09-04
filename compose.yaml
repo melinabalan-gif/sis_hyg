@@ -1,0 +1,196 @@
+name: hys-gestion
+
+x-api-env: &api-env
+  HYS_ENVIRONMENT: ${HYS_ENVIRONMENT:-development}
+  HYS_DATABASE_URL: ${HYS_DATABASE_URL:?Set HYS_DATABASE_URL in .env}
+  HYS_LOG_LEVEL: ${HYS_LOG_LEVEL:-INFO}
+  HYS_TRUSTED_HOSTS: ${HYS_TRUSTED_HOSTS:-localhost,api}
+  HYS_CORS_ORIGINS: ${HYS_CORS_ORIGINS:-}
+  HYS_S3_ENDPOINT: ${S3_ENDPOINT:-http://seaweedfs:8333}
+  HYS_S3_ACCESS_KEY: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY in .env}
+  HYS_S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY in .env}
+  HYS_S3_BUCKET: ${S3_BUCKET:-hys-private}
+  HYS_CLAMAV_HOST: clamav
+  HYS_CLAMAV_PORT: "3310"
+
+services:
+  db:
+    image: postgres:17.11-alpine3.24@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hys}
+      POSTGRES_USER: ${POSTGRES_USER:-hys_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      HYS_DB_APP_PASSWORD: ${HYS_DB_APP_PASSWORD:?Set HYS_DB_APP_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  db-provision:
+    image: postgres:17.11-alpine3.24@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-hys_owner}
+      PGDATABASE: ${POSTGRES_DB:-hys}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-hys_owner}
+      POSTGRES_DB: ${POSTGRES_DB:-hys}
+      HYS_DB_APP_PASSWORD: ${HYS_DB_APP_PASSWORD:?Set HYS_DB_APP_PASSWORD in .env}
+    volumes:
+      - ./infra/postgres/init-app-role.sh:/opt/hys/init-app-role.sh:ro
+    command: ["sh", "/opt/hys/init-app-role.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+
+  migrate:
+    build:
+      context: ./apps/api
+      target: runtime
+    environment:
+      <<: *api-env
+      HYS_MIGRATION_DATABASE_URL: ${HYS_MIGRATION_DATABASE_URL:?Set HYS_MIGRATION_DATABASE_URL in .env}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-provision:
+        condition: service_completed_successfully
+    networks: [backend]
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    build:
+      context: ./apps/api
+      target: runtime
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      seaweedfs:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    expose: ["8000"]
+    networks: [edge, backend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    security_opt: ["no-new-privileges:true"]
+
+  web:
+    build:
+      context: ./apps/web
+      target: runner
+      args:
+        HYS_PUBLIC_ORIGIN: ${HYS_PUBLIC_ORIGIN:?Set HYS_PUBLIC_ORIGIN in .env}
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:8000
+      HYS_PUBLIC_ORIGIN: ${HYS_PUBLIC_ORIGIN:?Set HYS_PUBLIC_ORIGIN in .env}
+    depends_on:
+      api:
+        condition: service_healthy
+    expose: ["3000"]
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    security_opt: ["no-new-privileges:true"]
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.45@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5
+    command:
+      - server
+      - -dir=/data
+      - -master.port=9333
+      - -volume.port=8080
+      - -filer=true
+      - -s3
+      - -s3.port=8333
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY in .env}
+    volumes:
+      - seaweed-data:/data
+    expose: ["8333", "8888", "9333"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  clamav:
+    image: clamav/clamav:1.5.4-debian13-slim@sha256:be3cb41d9833ce9ffb98f3d3e1483c35c0d87060c2bda3624d75fd28bbf0b3bd
+    volumes:
+      - clamav-data:/var/lib/clamav
+    expose: ["3310"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "printf 'PING\n' | nc -w 2 127.0.0.1 3310 | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  caddy:
+    image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    environment:
+      HYS_DOMAIN: ${HYS_DOMAIN:?Set HYS_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks: [edge]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  edge: {}
+  backend: {}
+
+volumes:
+  postgres-data: {}
+  seaweed-data: {}
+  clamav-data: {}
+  caddy-data: {}
+  caddy-config: {}
