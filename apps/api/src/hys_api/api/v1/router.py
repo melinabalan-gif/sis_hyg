@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from hys_api.api.v1.health import router as health_router
+from hys_api.db import models as _models  # noqa: F401
 from hys_api.modules.pilot.router import router as pilot_router
 
 router = APIRouter(prefix="/api/v1")
