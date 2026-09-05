@@ -198,7 +198,28 @@ def test_document_version_rejects_inverted_interval() -> None:
 
 def test_machine_inspection_requires_a_non_blank_reason() -> None:
     with pytest.raises(ValidationError, match="reason"):
-        MachineInspectionCreate(resulting_status="CON_OBSERVACIONES", reason=" ")
+        MachineInspectionCreate(
+            resulting_status="CON_OBSERVACIONES",
+            reason=" ",
+            checklist={
+                key: "CUMPLE"
+                for key in (
+                    "brakes",
+                    "lights",
+                    "reverse_alarm",
+                    "horn",
+                    "tires",
+                    "mirrors",
+                    "seat_belt",
+                    "fire_extinguisher",
+                    "warning_lights",
+                    "leaks",
+                    "guards",
+                    "signage",
+                    "specific_devices",
+                )
+            },
+        )
 
 
 def test_worksite_metrics_reconcile_visible_records() -> None:

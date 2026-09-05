@@ -30,6 +30,7 @@ import {
 
 const STEPS = [
   ["overview", "Resumen"],
+  ["actors", "Actores"],
   ["stages", "Etapas"],
   ["contractors", "Contratistas"],
   ["people", "Personal"],
@@ -118,8 +119,31 @@ const MACHINE_STATUS_LABELS = [
 ] as const;
 
 const CHECKLIST_LABELS: Record<string, string> = {
-  general_condition: "Estado general",
-  safety_devices: "Dispositivos de seguridad",
+  brakes: "Frenos",
+  lights: "Luces",
+  reverse_alarm: "Alarma de retroceso",
+  horn: "Bocina",
+  tires: "Neumáticos",
+  mirrors: "Espejos",
+  seat_belt: "Cinturón",
+  fire_extinguisher: "Matafuego",
+  warning_lights: "Balizas",
+  leaks: "Pérdidas",
+  guards: "Protecciones",
+  signage: "Señalización",
+  specific_devices: "Dispositivos específicos",
+};
+
+const MACHINE_CHECKLIST_KEYS = Object.keys(CHECKLIST_LABELS);
+
+const FUNCTION_LABELS: Record<string, string> = {
+  RESPONSABLE_HYS_PROYECTO: "Licenciado H&S del proyecto",
+  AUDITOR_DELEGADO_PROYECTO: "Técnico auditor delegado del proyecto",
+  RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL:
+    "Licenciado H&S de contratista principal",
+  TECNICO_HYS_CONTRATISTA_PRINCIPAL: "Técnico H&S de contratista principal",
+  RESPONSABLE_HYS_CONTRATISTA: "Licenciado H&S de contratista",
+  TECNICO_HYS_CONTRATISTA: "Técnico H&S de contratista",
 };
 
 function checklistLabel(key: string): string {
@@ -193,6 +217,7 @@ export function PilotWorkspace() {
   const role = actorRole(actor);
   const actorDefinition = PILOT_ACTORS.find((item) => item.value === actor);
   const canManageResources = role === "TECNICO" || role === "RESPONSABLE_HYS";
+  const canManageAssignments = canManageResources;
   const canManageAudit = role === "AUDITOR" || role === "RESPONSABLE_HYS";
   const canVerify = role === "AUDITOR" || role === "RESPONSABLE_HYS";
 
@@ -496,8 +521,11 @@ export function PilotWorkspace() {
             <span>
               Empresa representada:{" "}
               {actorDefinition?.role === "TECNICO" ||
-              actorDefinition?.value === "licenciado-contratista-principal"
-                ? "Contratista principal"
+              actorDefinition?.value.includes("contratista")
+                ? actorDefinition.value === "tecnico" ||
+                  actorDefinition.value === "licenciado-contratista-principal"
+                  ? "Contratista principal"
+                  : "Empresa contratista asignada"
                 : actorDefinition?.role === "CONTRATISTA"
                   ? "Cuenta organizacional"
                   : "Proyecto / obra"}
@@ -658,6 +686,31 @@ export function PilotWorkspace() {
                   role={role}
                   onDownloadReport={() => void downloadReport()}
                   onStep={setStep}
+                />
+              ) : null}
+              {step === "actors" ? (
+                <ActorsStep
+                  detail={detail}
+                  busy={busy}
+                  canManage={canManageAssignments}
+                  onSubmit={(event) =>
+                    void submitForm(
+                      event,
+                      "functional-assignment",
+                      `/worksites/${detail.id}/functional-assignments`,
+                      (form) => ({
+                        actor_id: fieldValue(form, "actor_id"),
+                        person_id: fieldValue(form, "person_id"),
+                        function_code: fieldValue(form, "function_code"),
+                        represented_contractor_id: optionalField(
+                          form,
+                          "represented_contractor_id",
+                        ),
+                        valid_from: optionalField(form, "valid_from"),
+                      }),
+                      "Actor asignado explícitamente a la obra.",
+                    )
+                  }
                 />
               ) : null}
               {step === "stages" ? (
@@ -841,13 +894,15 @@ export function PilotWorkspace() {
                       (form) => ({
                         internal_code: fieldValue(form, "internal_code"),
                         description: fieldValue(form, "description"),
-                        status: fieldValue(form, "status"),
-                        reason: fieldValue(form, "reason"),
                         contractor_id: optionalField(form, "contractor_id"),
                         machine_type: optionalField(form, "machine_type"),
                         brand: optionalField(form, "brand"),
                         model: optionalField(form, "model"),
                         license_plate: optionalField(form, "license_plate"),
+                        operator_person_id: optionalField(
+                          form,
+                          "operator_person_id",
+                        ),
                       }),
                       "Maquinaria asignada con inspección inicial trazada.",
                     )
@@ -860,13 +915,12 @@ export function PilotWorkspace() {
                       (form) => ({
                         resulting_status: fieldValue(form, "resulting_status"),
                         reason: fieldValue(form, "inspection_reason"),
-                        checklist: {
-                          general_condition: fieldValue(
-                            form,
-                            "general_condition",
-                          ),
-                          safety_devices: fieldValue(form, "safety_devices"),
-                        },
+                        checklist: Object.fromEntries(
+                          MACHINE_CHECKLIST_KEYS.map((key) => [
+                            key,
+                            fieldValue(form, key),
+                          ]),
+                        ),
                         evidence_note: optionalField(form, "evidence_note"),
                       }),
                       "Reinspección registrada; estado y versión actualizados.",
@@ -926,6 +980,14 @@ export function PilotWorkspace() {
                           form,
                           "affected_contractor_id",
                         ),
+                        responsible_contractor_id: optionalField(
+                          form,
+                          "responsible_contractor_id",
+                        ),
+                        responsible_person_id: optionalField(
+                          form,
+                          "responsible_person_id",
+                        ),
                       }),
                       "Control registrado y desvío enlazado cuando corresponde.",
                     );
@@ -959,6 +1021,10 @@ export function PilotWorkspace() {
                           form,
                           "unregistered_contractor_id",
                         ),
+                        responsible_contractor_id: optionalField(
+                          form,
+                          "unregistered_responsible_contractor_id",
+                        ),
                       }),
                       "Hallazgo de persona no registrada creado.",
                     );
@@ -968,7 +1034,10 @@ export function PilotWorkspace() {
               {step === "followup" ? (
                 <FollowupStep
                   detail={detail}
-                  actor={actor}
+                  currentActorId={actorDefinition?.id ?? ""}
+                  currentActorLabel={
+                    actorDefinition?.label ?? "Actor sintético"
+                  }
                   busy={busy}
                   canVerify={canVerify}
                   canCorrect={role === "TECNICO" || role === "RESPONSABLE_HYS"}
@@ -1036,12 +1105,21 @@ function Overview({
   ] as const;
   const controls = detail.metrics.controls;
   const latestAudit = detail.metrics.latest_audit;
+  const assignments = detail.functional_assignments ?? [];
+  const hasPrincipal = detail.contractors.some(
+    (item) => item.participation_type === "PRINCIPAL",
+  );
+  const hasProjectActors = [
+    "RESPONSABLE_HYS_PROYECTO",
+    "AUDITOR_DELEGADO_PROYECTO",
+  ].every((code) => assignments.some((item) => item.function_code === code));
   const totalRecords =
     detail.contractors.length +
     detail.stages.length +
     detail.people.length +
     detail.documents.length +
     detail.machines.length;
+  const needsOnboarding = !totalRecords || !hasPrincipal || !hasProjectActors;
   const ratioLabel =
     controls.ratio === null
       ? "Aún no hay auditorías realizadas"
@@ -1071,13 +1149,14 @@ function Overview({
             ? "Vista de lectura: revisá estado, vencimientos, desvíos y reportes."
             : "Priorizá vencimientos, correcciones y registros pendientes."}
       </p>
-      {!totalRecords ? (
+      {needsOnboarding ? (
         <Card className="onboarding-card">
           <p className="kicker">Siguiente paso</p>
           <h3>Configurá esta obra antes de operar</h3>
           <p>
-            La obra está creada sin registros heredados. Seguí este recorrido
-            para preparar un legajo trazable.
+            {totalRecords
+              ? "Completá las responsabilidades y registros que faltan para que el flujo sea accionable."
+              : "La obra está creada sin registros heredados. Seguí este recorrido para preparar un legajo trazable."}
           </p>
           <ol className="onboarding-list">
             <li>
@@ -1085,6 +1164,13 @@ function Overview({
                 Configurar responsables y actores H&amp;S
               </button>
             </li>
+            {!hasProjectActors ? (
+              <li>
+                <button onClick={() => onStep("actors")} type="button">
+                  Asignar responsables y auditor delegado
+                </button>
+              </li>
+            ) : null}
             <li>
               <button onClick={() => onStep("contractors")} type="button">
                 Registrar contratista principal
@@ -1117,6 +1203,72 @@ function Overview({
           </button>
         ))}
       </div>
+      <Card className="priority-card">
+        <p className="kicker">Prioridades</p>
+        <ul className="priority-list">
+          {detail.metrics.documents.by_status.VENCIDO ? (
+            <li>
+              {detail.metrics.documents.by_status.VENCIDO} documento(s)
+              vencido(s) requieren acción.
+              <button onClick={() => onStep("documents")} type="button">
+                Revisar documentación
+              </button>
+            </li>
+          ) : null}
+          {detail.metrics.findings.by_status.ABIERTO ||
+          detail.metrics.findings.by_status.EN_CORRECCION ? (
+            <li>
+              {detail.metrics.findings.by_status.ABIERTO +
+                detail.metrics.findings.by_status.EN_CORRECCION}{" "}
+              desvío(s) abiertos requieren seguimiento.
+              <button onClick={() => onStep("followup")} type="button">
+                Ver seguimiento
+              </button>
+            </li>
+          ) : null}
+          {detail.metrics.findings.by_status.PENDIENTE_VERIFICACION ? (
+            <li>
+              {detail.metrics.findings.by_status.PENDIENTE_VERIFICACION}{" "}
+              corrección(es) esperan verificación.
+              <button onClick={() => onStep("followup")} type="button">
+                Verificar correcciones
+              </button>
+            </li>
+          ) : null}
+          {detail.metrics.machines.by_status.FUERA_DE_SERVICIO ? (
+            <li>
+              {detail.metrics.machines.by_status.FUERA_DE_SERVICIO}{" "}
+              maquinaria(s) fuera de servicio requieren inspección.
+              <button onClick={() => onStep("machines")} type="button">
+                Revisar maquinarias
+              </button>
+            </li>
+          ) : null}
+          {!hasPrincipal || !hasProjectActors ? (
+            <li>
+              Faltan responsabilidades o contratista principal para operar la
+              obra.
+              <button
+                onClick={() =>
+                  onStep(!hasProjectActors ? "actors" : "contractors")
+                }
+                type="button"
+              >
+                Completar configuración
+              </button>
+            </li>
+          ) : null}
+          {!detail.metrics.documents.by_status.VENCIDO &&
+          !detail.metrics.findings.by_status.ABIERTO &&
+          !detail.metrics.findings.by_status.EN_CORRECCION &&
+          !detail.metrics.findings.by_status.PENDIENTE_VERIFICACION &&
+          !detail.metrics.machines.by_status.FUERA_DE_SERVICIO &&
+          hasPrincipal &&
+          hasProjectActors ? (
+            <li>No hay prioridades críticas pendientes en este corte.</li>
+          ) : null}
+        </ul>
+      </Card>
       <Card className="scope-card">
         <div>
           <StatusBadge value="ASIGNACIONES" />
@@ -1267,6 +1419,128 @@ function Overview({
           Informe sintético generado sin archivos binarios ni datos reales.
         </p>
       </Card>
+    </section>
+  );
+}
+
+function ActorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
+  return (
+    <section>
+      <StepHeading
+        eyebrow="02 · Alcance profesional"
+        title="Actores y funciones de esta obra"
+        text="Las asignaciones son explícitas: persona, función, empresa representada y alcance. Una obra nueva no hereda profesionales."
+      />
+      <div className="two-column">
+        <Card>
+          <h3>Asignar actor profesional</h3>
+          <form className="form-grid" onSubmit={onSubmit}>
+            <Field label="Identidad sintética">
+              <select name="actor_id" required defaultValue="">
+                <option value="" disabled>
+                  Seleccionar identidad…
+                </option>
+                {PILOT_ACTORS.filter((item) => item.role !== "CONTRATISTA").map(
+                  (item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ),
+                )}
+              </select>
+            </Field>
+            <Field label="Persona profesional">
+              <select name="person_id" required defaultValue="">
+                <option value="" disabled>
+                  Seleccionar persona…
+                </option>
+                {detail.people
+                  .filter((item) =>
+                    ["LICENCIADO_HYS", "TECNICO_HYS"].includes(
+                      item.profession_code ?? "",
+                    ),
+                  )
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.display_name} · {pilotLabel(item.profession_code)}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            <Field label="Función en la obra">
+              <select name="function_code" required defaultValue="">
+                <option value="" disabled>
+                  Seleccionar función…
+                </option>
+                {Object.entries(FUNCTION_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Empresa representada">
+              <select name="represented_contractor_id" defaultValue="">
+                <option value="">Proyecto / obra</option>
+                {detail.contractors.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.legal_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Vigente desde (opcional)">
+              <input name="valid_from" type="date" />
+            </Field>
+            <button
+              className="button button--primary form-action"
+              disabled={busy !== null || !canManage || !detail.people.length}
+            >
+              Asignar función
+            </button>
+          </form>
+          {!detail.people.length ? (
+            <p className="permission-note">
+              Primero registrá la persona profesional en Personal.
+            </p>
+          ) : null}
+          {!canManage ? (
+            <PermissionCopy text="Cambiá a Técnico o Responsable H&S para configurar actores." />
+          ) : null}
+        </Card>
+        <Card>
+          <ListHeading count={detail.functional_assignments?.length ?? 0}>
+            Asignaciones vigentes e históricas
+          </ListHeading>
+          {detail.functional_assignments?.length ? (
+            <ul className="record-list">
+              {detail.functional_assignments.map((assignment) => (
+                <li key={assignment.id}>
+                  <div>
+                    <strong>
+                      {assignment.person_name ?? assignment.actor_label}
+                    </strong>
+                    <span>
+                      {FUNCTION_LABELS[assignment.function_code] ??
+                        pilotLabel(assignment.function_code)}
+                    </span>
+                  </div>
+                  <small>
+                    {assignment.represented_contractor_name ??
+                      "Proyecto / obra"}{" "}
+                    ·{" "}
+                    {assignment.permission_scope === "ORGANIZATION"
+                      ? "Organización"
+                      : "Obra seleccionada"}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState>Todavía no hay actores asignados.</EmptyState>
+          )}
+        </Card>
+      </div>
     </section>
   );
 }
@@ -1914,7 +2188,7 @@ function MachinesStep({
       <StepHeading
         eyebrow="06 · Activos"
         title="Maquinarias"
-        text="El estado inicial y cada transición nacen de una inspección con motivo y actor, no de un valor aislado."
+        text="El alta administrativa del equipo está separada de la inspección técnica. Cada inspección conserva actor, función, checklist y evidencia."
       />
       <div className="two-column">
         <Card>
@@ -1942,26 +2216,22 @@ function MachinesStep({
             <Field label="Patente o identificación">
               <input name="license_plate" placeholder="SINT-001" />
             </Field>
-            <Field label="Estado inicial">
-              <select name="status" defaultValue="OPERATIVA">
-                <option value="OPERATIVA">Operativa</option>
-                <option value="CON_OBSERVACIONES">Con observaciones</option>
-                <option value="FUERA_DE_SERVICIO">Fuera de servicio</option>
-              </select>
-            </Field>
-            <Field label="Motivo de inspección">
-              <textarea
-                name="reason"
-                required
-                placeholder="Inspección inicial sin observaciones"
-              />
-            </Field>
             <Field label="Contratista (opcional)">
               <select name="contractor_id" defaultValue="">
                 <option value="">Propia de la obra</option>
                 {detail.contractors.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.legal_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Operador asignado (opcional)">
+              <select name="operator_person_id" defaultValue="">
+                <option value="">Sin operador asignado</option>
+                {detail.people.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.display_name}
                   </option>
                 ))}
               </select>
@@ -1998,6 +2268,12 @@ function MachinesStep({
                     <p className="machine-warning">
                       Fuera de servicio: no debe operar hasta una inspección que
                       documente el levantamiento de la condición.
+                    </p>
+                  ) : null}
+                  {!item.inspections?.length ? (
+                    <p className="permission-note">
+                      Alta administrativa registrada. Falta la primera
+                      inspección técnica.
                     </p>
                   ) : null}
                   <details className="machine-history">
@@ -2096,25 +2372,18 @@ function MachinesStep({
                             required
                           />
                         </Field>
-                        <Field label="Estado general del checklist">
-                          <select
-                            name="general_condition"
-                            defaultValue="CUMPLE"
-                          >
-                            <option value="CUMPLE">Cumple</option>
-                            <option value="NO_CUMPLE">No cumple</option>
-                            <option value="NO_APLICA">No aplica</option>
-                            <option value="NO_VERIFICADO">No verificado</option>
-                          </select>
-                        </Field>
-                        <Field label="Dispositivos de seguridad">
-                          <select name="safety_devices" defaultValue="CUMPLE">
-                            <option value="CUMPLE">Cumple</option>
-                            <option value="NO_CUMPLE">No cumple</option>
-                            <option value="NO_APLICA">No aplica</option>
-                            <option value="NO_VERIFICADO">No verificado</option>
-                          </select>
-                        </Field>
+                        {MACHINE_CHECKLIST_KEYS.map((key) => (
+                          <Field key={key} label={checklistLabel(key)}>
+                            <select name={key} defaultValue="CUMPLE">
+                              <option value="CUMPLE">Cumple</option>
+                              <option value="NO_CUMPLE">No cumple</option>
+                              <option value="NO_APLICA">No aplica</option>
+                              <option value="NO_VERIFICADO">
+                                No verificado
+                              </option>
+                            </select>
+                          </Field>
+                        ))}
                         <Field label="Evidencia o referencia">
                           <input
                             name="evidence_note"
@@ -2338,6 +2607,7 @@ function AuditStep({
                       canManage={canManage}
                       control={catalogControl}
                       contractors={detail.contractors}
+                      people={detail.people}
                       onSubmit={onControl}
                     />
                   ) : null}
@@ -2365,6 +2635,17 @@ function AuditStep({
               </select>
               <select name="unregistered_contractor_id" defaultValue="">
                 <option value="">Empresa afectada (opcional)</option>
+                {detail.contractors.map((contractor) => (
+                  <option key={contractor.id} value={contractor.id}>
+                    {contractor.legal_name}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="unregistered_responsible_contractor_id"
+                defaultValue=""
+              >
+                <option value="">Responsable de corregir (opcional)</option>
                 {detail.contractors.map((contractor) => (
                   <option key={contractor.id} value={contractor.id}>
                     {contractor.legal_name}
@@ -2414,12 +2695,14 @@ function AuditControlForm({
   canManage,
   control,
   contractors,
+  people,
   onSubmit,
 }: {
   busy: string | null;
   canManage: boolean;
   control: { catalog_code: string; catalog_title: string };
   contractors: WorksiteDetail["contractors"];
+  people: WorksiteDetail["people"];
   onSubmit: (event: FormEvent<HTMLFormElement>, catalogCode: string) => void;
 }) {
   const [result, setResult] = useState<AuditResult>("CUMPLE");
@@ -2484,6 +2767,26 @@ function AuditControlForm({
                 ))}
               </select>
             </Field>
+            <Field label="Responsable de corregir (empresa)">
+              <select name="responsible_contractor_id" defaultValue="">
+                <option value="">Usar empresa afectada</option>
+                {contractors.map((contractor) => (
+                  <option key={contractor.id} value={contractor.id}>
+                    {contractor.legal_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Responsable de corregir (persona)">
+              <select name="responsible_person_id" defaultValue="">
+                <option value="">Sin persona específica</option>
+                {people.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
           </>
         ) : null}
         <button
@@ -2499,7 +2802,8 @@ function AuditControlForm({
 
 function FollowupStep({
   detail,
-  actor,
+  currentActorId,
+  currentActorLabel,
   busy,
   canVerify,
   canCorrect,
@@ -2508,7 +2812,8 @@ function FollowupStep({
   onVerify,
 }: {
   detail: WorksiteDetail;
-  actor: PilotActor;
+  currentActorId: string;
+  currentActorLabel: string;
   busy: string | null;
   canVerify: boolean;
   canCorrect: boolean;
@@ -2560,6 +2865,14 @@ function FollowupStep({
                         "Sin empresa asignada"}
                     </dd>
                   </div>
+                  <div>
+                    <dt>Responsable de corregir</dt>
+                    <dd>
+                      {finding.responsible_person_name ??
+                        finding.responsible_contractor_name ??
+                        "Sin responsable asignado"}
+                    </dd>
+                  </div>
                 </dl>
               </div>
               <dl>
@@ -2567,8 +2880,9 @@ function FollowupStep({
                 <dd>{formatDate(finding.due_at)}</dd>
               </dl>
             </div>
-            {finding.status === "ABIERTO" ||
-            (finding.status === "EN_CORRECCION" && canCorrect) ? (
+            {canCorrect &&
+            (finding.status === "ABIERTO" ||
+              finding.status === "EN_CORRECCION") ? (
               <form
                 className="inline-form"
                 onSubmit={(event) => onCorrection(event, finding)}
@@ -2595,8 +2909,9 @@ function FollowupStep({
                 </button>
               </form>
             ) : null}
-            {finding.status === "EN_CORRECCION" &&
-            finding.corrections.length ? (
+            {canCorrect &&
+            finding.status === "EN_CORRECCION" &&
+            finding.corrections.at(-1)?.created_by === currentActorId ? (
               <button
                 className="button button--dark"
                 disabled={busy !== null}
@@ -2646,6 +2961,44 @@ function FollowupStep({
                 ✓ Desvío cerrado mediante verificación independiente.
               </p>
             ) : null}
+            {finding.corrections.length ? (
+              <div className="finding-history-block">
+                <h4>Correcciones y evidencias</h4>
+                <ol className="finding-history-list">
+                  {finding.corrections.map((correction) => (
+                    <li key={correction.id}>
+                      <strong>{correction.description}</strong>
+                      <span>{correction.evidence_note}</span>
+                      <small>
+                        Informada por{" "}
+                        {correction.created_by?.slice(0, 8) ??
+                          "actor sintético"}{" "}
+                        · {formatDateTime(correction.created_at)}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+            {finding.verifications.length ? (
+              <div className="finding-history-block">
+                <h4>Decisiones de verificación</h4>
+                <ol className="finding-history-list">
+                  {finding.verifications.map((verification) => (
+                    <li key={verification.id}>
+                      <strong>{pilotLabel(verification.decision)}</strong>
+                      <span>{verification.notes}</span>
+                      <small>
+                        Por{" "}
+                        {verification.verified_by?.slice(0, 8) ??
+                          "actor sintético"}{" "}
+                        · {formatDateTime(verification.created_at)}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
             <details className="timeline">
               <summary>Trazabilidad ({finding.events.length} eventos)</summary>
               {finding.events.length ? (
@@ -2673,7 +3026,7 @@ function FollowupStep({
                 </EmptyState>
               )}
             </details>
-            <p className="actor-footnote">Actor actual: {actor}</p>
+            <p className="actor-footnote">Actor actual: {currentActorLabel}</p>
           </Card>
         ))}
       </div>

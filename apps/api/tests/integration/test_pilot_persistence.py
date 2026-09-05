@@ -11,7 +11,7 @@ from hys_api.api.dependencies import PILOT_ACTORS, PILOT_ORGANIZATION_ID, PilotR
 from hys_api.core.errors import ProblemException
 from hys_api.db.tenant import AuthorizationContext, apply_authorization_context
 from hys_api.modules.pilot.demo_seed import seed_demo
-from hys_api.modules.pilot.report import build_worksite_report_pdf
+from hys_api.modules.pilot.report import build_audit_report_pdf, build_worksite_report_pdf
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
     ContractorCreate,
@@ -75,6 +75,24 @@ DEMO_CONTRACTOR_PROFESSIONAL_ID = UUID("00000000-0000-4000-8000-000000001032")
 DEMO_CONTRACTOR_TECHNICIAN_ID = UUID("00000000-0000-4000-8000-000000001033")
 DEMO_SECONDARY_CONTRACTOR_ID = UUID("00000000-0000-4000-8000-000000001034")
 DEMO_SECONDARY_SUBCONTRACTOR_ID = UUID("00000000-0000-4000-8000-000000001035")
+
+
+def _machine_checklist() -> dict[str, str]:
+    return {
+        "brakes": "CUMPLE",
+        "lights": "CUMPLE",
+        "reverse_alarm": "CUMPLE",
+        "horn": "CUMPLE",
+        "tires": "CUMPLE",
+        "mirrors": "CUMPLE",
+        "seat_belt": "CUMPLE",
+        "fire_extinguisher": "CUMPLE",
+        "warning_lights": "CUMPLE",
+        "leaks": "CUMPLE",
+        "guards": "CUMPLE",
+        "signage": "CUMPLE",
+        "specific_devices": "NO_APLICA",
+    }
 
 MUTABLE_TABLES = {
     "audit_controls",
@@ -195,6 +213,15 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
     try:
         assert await seed_demo() is True
         assert await seed_demo() is False
+        with pytest.raises(DBAPIError, match="finalized audit is immutable"):
+            async with engine.begin() as connection:
+                await connection.execute(
+                    text(
+                        "UPDATE audits SET status = 'EN_CURSO', finalized_at = NULL "
+                        "WHERE id = :audit_id"
+                    ),
+                    {"audit_id": UUID("00000000-0000-4000-8000-000000001017")},
+                )
         async with engine.begin() as connection:
             await connection.execute(
                 text(
@@ -204,18 +231,6 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
                 {
                     "legacy_actor": UUID("00000000-0000-0000-0000-000000000002"),
                     "machine_inspection": UUID("00000000-0000-4000-8000-000000001009"),
-                },
-            )
-            await connection.execute(
-                text(
-                    "UPDATE audits SET author_actor_id = :legacy_actor, "
-                    "editor_actor_id = :legacy_actor, auditor_actor_id = :legacy_actor, "
-                    "status = 'EN_CURSO', finalized_at = NULL, audit_date = NULL "
-                    "WHERE id = :audit_id"
-                ),
-                {
-                    "legacy_actor": UUID("00000000-0000-0000-0000-000000000001"),
-                    "audit_id": UUID("00000000-0000-4000-8000-000000001017"),
                 },
             )
             await connection.execute(
@@ -889,8 +904,6 @@ async def test_machine_inspections_are_initial_and_append_only_transitions(
                     MachineCreate(
                         internal_code="MAQ-INS-001",
                         description="Equipo sintético",
-                        status="OPERATIVA",
-                        reason="Inspección inicial aprobada",
                     ),
                 )
                 stopped = await service.record_machine_inspection(
@@ -899,6 +912,7 @@ async def test_machine_inspections_are_initial_and_append_only_transitions(
                     MachineInspectionCreate(
                         resulting_status="FUERA_DE_SERVICIO",
                         reason="Falla crítica detectada",
+                        checklist=_machine_checklist(),
                     ),
                 )
                 recovered = await service.record_machine_inspection(
@@ -907,6 +921,7 @@ async def test_machine_inspections_are_initial_and_append_only_transitions(
                     MachineInspectionCreate(
                         resulting_status="OPERATIVA",
                         reason="Reparación verificada en reinspección",
+                        checklist=_machine_checklist(),
                     ),
                 )
                 rows = (
@@ -923,14 +938,14 @@ async def test_machine_inspections_are_initial_and_append_only_transitions(
         assert stopped.status.value == "FUERA_DE_SERVICIO"
         assert recovered.status.value == "OPERATIVA"
         assert recovered.version == 3
-        assert len(recovered.inspections) == 3
-        assert {(item.resulting_status.value, item.reason) for item in recovered.inspections} == {
-            ("OPERATIVA", "Inspección inicial aprobada"),
+        assert len(recovered.inspections) == 2
+        assert {
+            (item.resulting_status.value, item.reason) for item in recovered.inspections
+        } == {
             ("FUERA_DE_SERVICIO", "Falla crítica detectada"),
             ("OPERATIVA", "Reparación verificada en reinspección"),
         }
         assert {tuple(row) for row in rows} == {
-            ("OPERATIVA", "Inspección inicial aprobada"),
             ("FUERA_DE_SERVICIO", "Falla crítica detectada"),
             ("OPERATIVA", "Reparación verificada en reinspección"),
         }
@@ -1148,6 +1163,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             lambda service: service.get_worksite_detail(worksite.id),
         )
         pdf = build_worksite_report_pdf(detail)
+        audit_pdf = build_audit_report_pdf(detail, audit.id)
     finally:
         await engine.dispose()
 
@@ -1162,3 +1178,6 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
     assert b"SYN-COMPLETE-JOURNEY" in pdf
     assert b"Cerrado" in pdf
     assert pdf.endswith(b"%%EOF\n")
+    assert audit_pdf.startswith(b"%PDF-1.4")
+    assert b"Informe de Auditoria" in audit_pdf
+    assert audit_pdf.endswith(b"%%EOF\n")

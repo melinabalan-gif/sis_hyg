@@ -340,7 +340,7 @@ async def seed_demo() -> bool:
                             "id": _id(1043),
                             "organization_id": ORGANIZATION_ID,
                             "worksite_id": WORKSITE_ID,
-                            "contractor_id": contractor_id,
+                            "contractor_id": None,
                             "person_id": project_professional_id,
                             "started_on": date(2026, 9, 1),
                             "ended_on": None,
@@ -350,7 +350,7 @@ async def seed_demo() -> bool:
                             "id": _id(1044),
                             "organization_id": ORGANIZATION_ID,
                             "worksite_id": WORKSITE_ID,
-                            "contractor_id": contractor_id,
+                            "contractor_id": None,
                             "person_id": delegated_auditor_person_id,
                             "started_on": date(2026, 9, 1),
                             "ended_on": None,
@@ -517,6 +517,21 @@ async def seed_demo() -> bool:
                         "worksite_id": WORKSITE_ID,
                         "resulting_status": "OPERATIVA",
                         "reason": "Inspección inicial sintética aprobada.",
+                        "checklist": {
+                            "brakes": "CUMPLE",
+                            "lights": "CUMPLE",
+                            "reverse_alarm": "CUMPLE",
+                            "horn": "CUMPLE",
+                            "tires": "CUMPLE",
+                            "mirrors": "CUMPLE",
+                            "seat_belt": "CUMPLE",
+                            "fire_extinguisher": "CUMPLE",
+                            "warning_lights": "CUMPLE",
+                            "leaks": "CUMPLE",
+                            "guards": "CUMPLE",
+                            "signage": "CUMPLE",
+                            "specific_devices": "NO_APLICA",
+                        },
                         "actor_id": TECNICO_ID,
                         "inspected_at": SEED_AT,
                     },
@@ -647,88 +662,116 @@ async def seed_demo() -> bool:
                 )
             )
             audit_id = _id(1017)
-            await connection.execute(
-                insert(
-                    Audit,
-                    {
-                        "id": audit_id,
-                        "organization_id": ORGANIZATION_ID,
-                        "worksite_id": WORKSITE_ID,
-                        "status": "FINALIZADA",
-                        "author_actor_id": AUDITOR_ID,
-                        "editor_actor_id": AUDITOR_ID,
-                        "started_at": SEED_AT,
-                        "finalized_at": SEED_AT,
-                        "created_at": SEED_AT,
-                        "updated_at": SEED_AT,
-                        "version": 2,
-                        "control_catalog_version_id": UUID("00000000-0000-4000-8000-000000000102"),
-                        "auditor_actor_id": AUDITOR_ID,
-                        "auditor_assignment_id": _id(1039),
-                        "associated_professional_person_id": project_professional_id,
-                        "audit_date": SEED_AT.date(),
-                    },
-                    update_columns=(
-                        "worksite_id",
-                        "status",
-                        "author_actor_id",
-                        "editor_actor_id",
-                        "started_at",
-                        "finalized_at",
-                        "updated_at",
-                        "auditor_actor_id",
-                        "auditor_assignment_id",
-                        "associated_professional_person_id",
-                        "audit_date",
-                    ),
+            existing_audit_status = await connection.scalar(
+                select(Audit.status).where(
+                    Audit.organization_id == ORGANIZATION_ID,
+                    Audit.id == audit_id,
                 )
             )
+            audit_is_finalized = existing_audit_status == "FINALIZADA"
+            if not audit_is_finalized:
+                await connection.execute(
+                    insert(
+                        Audit,
+                        {
+                            "id": audit_id,
+                            "organization_id": ORGANIZATION_ID,
+                            "worksite_id": WORKSITE_ID,
+                            "status": "EN_CURSO",
+                            "author_actor_id": AUDITOR_ID,
+                            "editor_actor_id": AUDITOR_ID,
+                            "started_at": SEED_AT,
+                            "finalized_at": None,
+                            "created_at": SEED_AT,
+                            "updated_at": SEED_AT,
+                            "version": 2,
+                            "control_catalog_version_id": UUID(
+                                "00000000-0000-4000-8000-000000000102"
+                            ),
+                            "auditor_actor_id": AUDITOR_ID,
+                            "auditor_assignment_id": _id(1039),
+                            "associated_professional_person_id": project_professional_id,
+                            "audit_date": SEED_AT.date(),
+                        },
+                        update_columns=(
+                            "worksite_id",
+                            "status",
+                            "author_actor_id",
+                            "editor_actor_id",
+                            "started_at",
+                            "finalized_at",
+                            "updated_at",
+                            "auditor_actor_id",
+                            "auditor_assignment_id",
+                            "associated_professional_person_id",
+                            "audit_date",
+                        ),
+                    )
+                )
             control_ok_id = _id(1018)
             control_finding_id = _id(1019)
             control_na_id = _id(1020)
-            await connection.execute(
-                insert(
-                    AuditControl,
-                    [
-                        {
-                            "id": control_ok_id,
-                            "organization_id": ORGANIZATION_ID,
-                            "audit_id": audit_id,
-                            "catalog_code": "SYN-CIRCULACION-001",
-                            "catalog_title": (
-                                "Circulación y señalización interna - control sintético"
-                            ),
-                            "result": "CUMPLE",
-                            "reason": None,
-                            "recorded_by_actor_id": AUDITOR_ID,
-                            "recorded_at": SEED_AT,
-                        },
-                        {
-                            "id": control_finding_id,
-                            "organization_id": ORGANIZATION_ID,
-                            "audit_id": audit_id,
-                            "catalog_code": "SYN-EPP-001",
-                            "catalog_title": "Elementos de protección personal - control sintético",
-                            "result": "NO_CUMPLE",
-                            "reason": "Se requiere completar la entrega sintética.",
-                            "recorded_by_actor_id": AUDITOR_ID,
-                            "recorded_at": SEED_AT,
-                        },
-                        {
-                            "id": control_na_id,
-                            "organization_id": ORGANIZATION_ID,
-                            "audit_id": audit_id,
-                            "catalog_code": "SYN-ORDEN-001",
-                            "catalog_title": "Orden y condiciones generales - control sintético",
-                            "result": "NO_APLICA",
-                            "reason": "No aplica al sector sintético de esta demostración.",
-                            "recorded_by_actor_id": AUDITOR_ID,
-                            "recorded_at": SEED_AT,
-                        },
-                    ],
-                    update_columns=("recorded_by_actor_id",),
+            if not audit_is_finalized:
+                await connection.execute(
+                    insert(
+                        AuditControl,
+                        [
+                            {
+                                "id": control_ok_id,
+                                "organization_id": ORGANIZATION_ID,
+                                "audit_id": audit_id,
+                                "catalog_code": "SYN-CIRCULACION-001",
+                                "catalog_title": (
+                                    "Circulación y señalización interna - control sintético"
+                                ),
+                                "result": "CUMPLE",
+                                "reason": None,
+                                "recorded_by_actor_id": AUDITOR_ID,
+                                "recorded_at": SEED_AT,
+                            },
+                            {
+                                "id": control_finding_id,
+                                "organization_id": ORGANIZATION_ID,
+                                "audit_id": audit_id,
+                                "catalog_code": "SYN-EPP-001",
+                                "catalog_title": (
+                                    "Elementos de protección personal - control sintético"
+                                ),
+                                "result": "NO_CUMPLE",
+                                "reason": "Se requiere completar la entrega sintética.",
+                                "recorded_by_actor_id": AUDITOR_ID,
+                                "recorded_at": SEED_AT,
+                            },
+                            {
+                                "id": control_na_id,
+                                "organization_id": ORGANIZATION_ID,
+                                "audit_id": audit_id,
+                                "catalog_code": "SYN-ORDEN-001",
+                                "catalog_title": (
+                                    "Orden y condiciones generales - control sintético"
+                                ),
+                                "result": "NO_APLICA",
+                                "reason": "No aplica al sector sintético de esta demostración.",
+                                "recorded_by_actor_id": AUDITOR_ID,
+                                "recorded_at": SEED_AT,
+                            },
+                        ],
+                        update_columns=("recorded_by_actor_id",),
+                    )
                 )
-            )
+                await connection.execute(
+                    text(
+                        "UPDATE audits SET status = 'FINALIZADA', finalized_at = :finalized_at, "
+                        "updated_at = :updated_at WHERE organization_id = :organization_id "
+                        "AND id = :audit_id"
+                    ),
+                    {
+                        "finalized_at": SEED_AT,
+                        "updated_at": SEED_AT,
+                        "organization_id": ORGANIZATION_ID,
+                        "audit_id": audit_id,
+                    },
+                )
             finding_id = _id(1021)
             await connection.execute(
                 insert(

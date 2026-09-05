@@ -348,6 +348,21 @@ async def test_machine_inspection_route_serializes_transition_and_history(
         json={
             "resulting_status": "CON_OBSERVACIONES",
             "reason": "Observación sintética",
+            "checklist": {
+                "brakes": "CUMPLE",
+                "lights": "CUMPLE",
+                "reverse_alarm": "CUMPLE",
+                "horn": "CUMPLE",
+                "tires": "CUMPLE",
+                "mirrors": "CUMPLE",
+                "seat_belt": "CUMPLE",
+                "fire_extinguisher": "CUMPLE",
+                "warning_lights": "CUMPLE",
+                "leaks": "CUMPLE",
+                "guards": "CUMPLE",
+                "signage": "CUMPLE",
+                "specific_devices": "CUMPLE",
+            },
         },
     )
 
@@ -365,7 +380,25 @@ async def test_machine_inspection_route_rejects_blank_reason(client, pilot_app: 
     response = await client.post(
         f"/api/v1/worksites/{WORKSITE_ID}/machines/{uuid4()}/inspections",
         headers={"X-Pilot-Actor": "tecnico"},
-        json={"resulting_status": "OPERATIVA", "reason": " "},
+        json={
+            "resulting_status": "OPERATIVA",
+            "reason": " ",
+            "checklist": {
+                "brakes": "CUMPLE",
+                "lights": "CUMPLE",
+                "reverse_alarm": "CUMPLE",
+                "horn": "CUMPLE",
+                "tires": "CUMPLE",
+                "mirrors": "CUMPLE",
+                "seat_belt": "CUMPLE",
+                "fire_extinguisher": "CUMPLE",
+                "warning_lights": "CUMPLE",
+                "leaks": "CUMPLE",
+                "guards": "CUMPLE",
+                "signage": "CUMPLE",
+                "specific_devices": "CUMPLE",
+            },
+        },
     )
 
     assert response.status_code == 422

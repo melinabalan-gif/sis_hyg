@@ -301,7 +301,7 @@ class PersonAssignment(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     organization_id: Mapped[UUID] = mapped_column(nullable=False)
     worksite_id: Mapped[UUID] = mapped_column(nullable=False)
-    contractor_id: Mapped[UUID] = mapped_column(nullable=False)
+    contractor_id: Mapped[UUID | None] = mapped_column()
     person_id: Mapped[UUID] = mapped_column(nullable=False)
     started_on: Mapped[date] = mapped_column(Date, nullable=False)
     ended_on: Mapped[date | None] = mapped_column(Date)
@@ -393,7 +393,8 @@ class WorksiteFunctionalAssignment(Base):
             "function_code IN ("
             "'RESPONSABLE_HYS_PROYECTO', 'AUDITOR_DELEGADO_PROYECTO', "
             "'RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL', "
-            "'TECNICO_HYS_CONTRATISTA_PRINCIPAL')",
+            "'TECNICO_HYS_CONTRATISTA_PRINCIPAL', "
+            "'RESPONSABLE_HYS_CONTRATISTA', 'TECNICO_HYS_CONTRATISTA')",
             name="valid_function_code",
         ),
         CheckConstraint(
@@ -1104,6 +1105,16 @@ class Finding(Base):
             ["contractors.organization_id", "contractors.id"],
             name="fk_findings_org_affected_contractor_contractors",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "responsible_contractor_id"],
+            ["contractors.organization_id", "contractors.id"],
+            name="fk_findings_org_responsible_contractor_contractors",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "responsible_person_id"],
+            ["people.organization_id", "people.id"],
+            name="fk_findings_org_responsible_person_people",
+        ),
         CheckConstraint(
             "status IN ('ABIERTO', 'EN_CORRECCION', 'PENDIENTE_VERIFICACION', 'CERRADO')",
             name="valid_status",
@@ -1127,6 +1138,11 @@ class Finding(Base):
             "organization_id",
             "affected_contractor_id",
         ),
+        Index(
+            "ix_findings_org_responsible_contractor",
+            "organization_id",
+            "responsible_contractor_id",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -1144,6 +1160,8 @@ class Finding(Base):
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_actor_id: Mapped[UUID] = mapped_column(nullable=False)
     affected_contractor_id: Mapped[UUID | None] = mapped_column()
+    responsible_contractor_id: Mapped[UUID | None] = mapped_column()
+    responsible_person_id: Mapped[UUID | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

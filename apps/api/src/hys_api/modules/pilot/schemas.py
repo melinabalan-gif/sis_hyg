@@ -76,6 +76,8 @@ class FunctionalAssignmentCode(StrEnum):
     AUDITOR_DELEGADO_PROYECTO = "AUDITOR_DELEGADO_PROYECTO"
     RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL = "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
     TECNICO_HYS_CONTRATISTA_PRINCIPAL = "TECNICO_HYS_CONTRATISTA_PRINCIPAL"
+    RESPONSABLE_HYS_CONTRATISTA = "RESPONSABLE_HYS_CONTRATISTA"
+    TECNICO_HYS_CONTRATISTA = "TECNICO_HYS_CONTRATISTA"
 
 
 class PermissionScope(StrEnum):
@@ -112,6 +114,25 @@ class MachineChecklistResult(StrEnum):
     NO_CUMPLE = "NO_CUMPLE"
     NO_APLICA = "NO_APLICA"
     NO_VERIFICADO = "NO_VERIFICADO"
+
+
+class MachineChecklistKey(StrEnum):
+    FRENOS = "brakes"
+    LUCES = "lights"
+    ALARMA_RETROCESO = "reverse_alarm"
+    BOCINA = "horn"
+    NEUMATICOS = "tires"
+    ESPEJOS = "mirrors"
+    CINTURON = "seat_belt"
+    MATAFUEGO = "fire_extinguisher"
+    BALIZAS = "warning_lights"
+    PERDIDAS = "leaks"
+    PROTECCIONES = "guards"
+    SENALIZACION = "signage"
+    DISPOSITIVOS_ESPECIFICOS = "specific_devices"
+
+
+REQUIRED_MACHINE_CHECKLIST_KEYS = frozenset(item.value for item in MachineChecklistKey)
 
 
 class WorksiteCreate(StrictSchema):
@@ -178,7 +199,7 @@ class ContractorView(StrictSchema):
 
 class PersonCreate(DatedAssignmentCreate):
     display_name: ShortText
-    contractor_id: UUID
+    contractor_id: UUID | None = None
     role_label: ShortText = "Personal"
     profession_code: ProfessionCode = ProfessionCode.OTRA
 
@@ -187,7 +208,7 @@ class PersonView(StrictSchema):
     id: UUID
     assignment_id: UUID
     display_name: str
-    contractor_id: UUID
+    contractor_id: UUID | None
     role_label: str
     profession_code: ProfessionCode
     started_on: date
@@ -297,8 +318,7 @@ class DocumentReviewView(StrictSchema):
 class MachineCreate(DatedAssignmentCreate):
     internal_code: Code
     description: ShortText
-    status: MachineStatus
-    reason: LongText
+    status: MachineStatus = MachineStatus.OPERATIVA
     contractor_id: UUID | None = None
     machine_type: ShortText | None = None
     brand: ShortText | None = None
@@ -313,8 +333,28 @@ class MachineInspectionCreate(StrictSchema):
         validation_alias=AliasChoices("resulting_status", "status")
     )
     reason: LongText
-    checklist: dict[str, MachineChecklistResult] = Field(default_factory=dict)
+    checklist: dict[MachineChecklistKey, MachineChecklistResult]
     evidence_note: LongText | None = None
+
+    @model_validator(mode="after")
+    def validate_checklist(self) -> Self:
+        keys = {
+            key.value if isinstance(key, MachineChecklistKey) else str(key)
+            for key in self.checklist
+        }
+        missing = REQUIRED_MACHINE_CHECKLIST_KEYS - keys
+        unknown = keys - REQUIRED_MACHINE_CHECKLIST_KEYS
+        if missing or unknown:
+            details: list[str] = []
+            if missing:
+                details.append(f"faltan: {', '.join(sorted(missing))}")
+            if unknown:
+                details.append(f"no reconocidos: {', '.join(sorted(unknown))}")
+            raise ValueError(
+                "El checklist técnico debe incluir todos los controles "
+                f"({'; '.join(details)})."
+            )
+        return self
 
 
 class MachineInspectionView(StrictSchema):
@@ -349,8 +389,8 @@ class MachineView(StrictSchema):
     status: MachineStatus
     version: int
     contractor_id: UUID | None
-    inspection_reason: str
-    inspected_at: datetime
+    inspection_reason: str | None
+    inspected_at: datetime | None
     started_on: date
     ended_on: date | None
     inspections: list[MachineInspectionView] = Field(default_factory=list)
@@ -368,6 +408,8 @@ class AuditControlCreate(StrictSchema):
     severity_code: Code | None = None
     finding_description: LongText | None = None
     affected_contractor_id: UUID | None = None
+    responsible_contractor_id: UUID | None = None
+    responsible_person_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_result_details(self) -> Self:
@@ -381,8 +423,17 @@ class AuditControlCreate(StrictSchema):
                 )
         elif self.severity_code is not None or self.finding_description is not None:
             raise ValueError("severity_code y finding_description sólo se permiten para NO_CUMPLE")
-        elif self.affected_contractor_id is not None:
-            raise ValueError("affected_contractor_id sólo se permite para NO_CUMPLE")
+        elif any(
+            value is not None
+            for value in (
+                self.affected_contractor_id,
+                self.responsible_contractor_id,
+                self.responsible_person_id,
+            )
+        ):
+            raise ValueError(
+                "La empresa y la persona responsable sólo se permiten para NO_CUMPLE"
+            )
         return self
 
 
@@ -455,6 +506,10 @@ class FindingView(StrictSchema):
     created_at: datetime
     affected_contractor_id: UUID | None = None
     affected_contractor_name: str | None = None
+    responsible_contractor_id: UUID | None = None
+    responsible_contractor_name: str | None = None
+    responsible_person_id: UUID | None = None
+    responsible_person_name: str | None = None
     corrections: list[CorrectionView] = Field(default_factory=list)
     verifications: list[VerificationView] = Field(default_factory=list)
     events: list[FindingEventView] = Field(default_factory=list)
@@ -465,6 +520,8 @@ class UnregisteredPersonFindingCreate(StrictSchema):
     description: LongText
     severity_code: Code = "MEDIA"
     affected_contractor_id: UUID | None = None
+    responsible_contractor_id: UUID | None = None
+    responsible_person_id: UUID | None = None
 
 
 class DocumentMetrics(StrictSchema):

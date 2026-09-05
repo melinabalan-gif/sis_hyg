@@ -18,16 +18,32 @@ funcionales y se mantiene dentro del adaptador de actores sintéticos. El
 contratista principal conserva una vista organizacional de solo lectura; las
 acciones técnicas continúan protegidas por función, obra y alcance.
 
+Las funciones profesionales de contratistas se asignan explícitamente a la
+empresa representada. El personal de proyecto puede no tener empresa asociada;
+esa asociación no se infiere por crear la persona ni por asignarla a una obra.
+Registrar una maquinaria no crea una inspección implícita: cada inspección debe
+aportar un checklist técnico completo de trece controles.
+
+Una auditoría finalizada y sus controles quedan protegidos también en base de
+datos mediante triggers de inmutabilidad. Las correcciones, verificaciones,
+revisiones documentales e inspecciones posteriores se agregan como nuevos
+eventos, sin sobrescribir la historia.
+
 ## Consecuencias
 
-- El esquema requiere una migración reversible `20260905_0007` con RLS y grants
-  explícitos para las nuevas tablas históricas.
+- El esquema requiere la migración `20260905_0008`, con RLS, grants explícitos,
+  responsabilidades de desvíos y protección de auditorías finalizadas.
+- El downgrade conserva nullable la asociación opcional de personal para no
+  descartar datos; volver a `NOT NULL` requiere una migración explícita que
+  asigne primero esas filas a una empresa.
 - El contrato OpenAPI y el cliente web se regeneran desde `apps/api/openapi.json`.
 - La independencia de desvíos se conserva: quien creó la corrección no puede
   verificarla; quien detectó el desvío sí puede hacerlo cuando otra persona
   registró la corrección.
 - Los reportes ejecutivo y de auditoría se generan desde el estado persistido y
-  continúan siendo demostrativos; no representan certificación legal.
+  ahora incluyen responsabilidades, documentación, revisiones, maquinaria,
+  inspecciones, etapas, desvíos y trazabilidad; continúan siendo demostrativos
+  y no representan certificación legal.
 
 ## Fuera de alcance
 

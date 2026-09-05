@@ -3,26 +3,43 @@ export const PILOT_ACTORS = [
     value: "tecnico",
     label: "Técnico H&S de contratista principal",
     role: "TECNICO",
+    id: "00000000-0000-4000-8000-000000000002",
   },
   {
     value: "auditor",
     label: "Técnico auditor delegado del proyecto",
     role: "AUDITOR",
+    id: "00000000-0000-4000-8000-000000000001",
   },
   {
     value: "responsable",
     label: "Licenciado H&S del proyecto",
     role: "RESPONSABLE_HYS",
+    id: "00000000-0000-4000-8000-000000000003",
   },
   {
     value: "licenciado-contratista-principal",
     label: "Licenciado H&S de contratista principal",
     role: "RESPONSABLE_HYS",
+    id: "00000000-0000-4000-8000-000000000004",
+  },
+  {
+    value: "tecnico-contratista",
+    label: "Técnico H&S de contratista",
+    role: "TECNICO",
+    id: "00000000-0000-4000-8000-000000000006",
+  },
+  {
+    value: "licenciado-contratista",
+    label: "Licenciado H&S de contratista",
+    role: "RESPONSABLE_HYS",
+    id: "00000000-0000-4000-8000-000000000007",
   },
   {
     value: "contratista-principal",
     label: "Contratista principal",
     role: "CONTRATISTA",
+    id: "00000000-0000-4000-8000-000000000005",
   },
 ] as const;
 
@@ -145,8 +162,8 @@ export interface Machine {
   version: number;
   contractor_id?: Identifier | null;
   contractor_name?: string | null;
-  inspection_reason: string;
-  inspected_at: string;
+  inspection_reason?: string | null;
+  inspected_at?: string | null;
   started_on: string;
   ended_on?: string | null;
   inspections: MachineInspection[];
@@ -270,6 +287,10 @@ export interface Finding {
   closed_at?: string | null;
   affected_contractor_id?: Identifier | null;
   affected_contractor_name?: string | null;
+  responsible_contractor_id?: Identifier | null;
+  responsible_contractor_name?: string | null;
+  responsible_person_id?: Identifier | null;
+  responsible_person_name?: string | null;
   source_label?: string | null;
   corrections: FindingCorrection[];
   verifications: FindingVerification[];
@@ -495,9 +516,11 @@ const PILOT_LABELS: Record<string, string> = {
   RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL:
     "Licenciado H&S de contratista principal",
   RESPONSABLE_HYS_PROYECTO: "Licenciado H&S del proyecto",
+  RESPONSABLE_HYS_CONTRATISTA: "Licenciado H&S de contratista",
   SUBMITTED_FOR_VERIFICATION: "Corrección enviada a verificación",
   TECNICO_HYS: "Técnico H&S",
   TECNICO_HYS_CONTRATISTA_PRINCIPAL: "Técnico H&S de contratista principal",
+  TECNICO_HYS_CONTRATISTA: "Técnico H&S de contratista",
   UNREGISTERED_PERSON_FOUND: "Persona no registrada detectada",
   VERIFICATION_ACEPTADA: "Corrección verificada y desvío cerrado",
   VERIFICATION_RECHAZADA: "Corrección rechazada",

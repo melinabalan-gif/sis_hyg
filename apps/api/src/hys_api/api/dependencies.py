@@ -77,6 +77,20 @@ PILOT_ACTORS = MappingProxyType(
             label="Licenciado H&S de contratista principal",
             profession_code="LICENCIADO_HYS",
         ),
+        "tecnico-contratista": PilotActor(
+            key="tecnico-contratista",
+            id=UUID("00000000-0000-4000-8000-000000000006"),
+            role=PilotRole.TECNICO,
+            label="Técnico H&S de contratista",
+            profession_code="TECNICO_HYS",
+        ),
+        "licenciado-contratista": PilotActor(
+            key="licenciado-contratista",
+            id=UUID("00000000-0000-4000-8000-000000000007"),
+            role=PilotRole.RESPONSABLE_HYS,
+            label="Licenciado H&S de contratista",
+            profession_code="LICENCIADO_HYS",
+        ),
         "contratista-principal": PilotActor(
             key="contratista-principal",
             id=UUID("00000000-0000-4000-8000-000000000005"),

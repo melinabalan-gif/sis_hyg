@@ -136,7 +136,7 @@ describe("HomePage", () => {
     expect(screen.getByText(/no hay documentos registrados/i)).toBeVisible();
     expect(screen.getByText("Aún no hay auditorías realizadas")).toBeVisible();
     expect(screen.getByText(/no hay auditorías registradas/i)).toBeVisible();
-    await user.click(screen.getByRole("tab", { name: /03.*contratistas/i }));
+    await user.click(screen.getByRole("tab", { name: /04.*contratistas/i }));
     expect(
       screen.getByRole("heading", { level: 2, name: "Contratistas" }),
     ).toBeVisible();
@@ -321,7 +321,7 @@ describe("HomePage", () => {
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.selectOptions(screen.getByLabelText(/actuar como/i), "auditor");
     await user.click(
-      await screen.findByRole("tab", { name: /07.*auditoría/i }),
+      await screen.findByRole("tab", { name: /08.*auditoría/i }),
     );
 
     expect(screen.getByText("Circulación sintética")).toBeVisible();
@@ -380,7 +380,7 @@ describe("HomePage", () => {
 
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
-    await user.click(await screen.findByRole("tab", { name: /02.*etapas/i }));
+    await user.click(await screen.findByRole("tab", { name: /03.*etapas/i }));
 
     const codeFields = screen.getAllByLabelText("Código");
     const nameFields = screen.getAllByLabelText("Nombre");
@@ -476,7 +476,7 @@ describe("HomePage", () => {
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.click(
-      await screen.findByRole("tab", { name: /05.*documentación/i }),
+      await screen.findByRole("tab", { name: /06.*documentación/i }),
     );
 
     expect(screen.getAllByText(/versión 1/i).length).toBeGreaterThan(0);
@@ -539,8 +539,19 @@ describe("HomePage", () => {
             resulting_status: "FUERA_DE_SERVICIO",
             reason: "Falla crítica detectada",
             checklist: {
-              general_condition: "CUMPLE",
-              safety_devices: "CUMPLE",
+              brakes: "CUMPLE",
+              lights: "CUMPLE",
+              reverse_alarm: "CUMPLE",
+              horn: "CUMPLE",
+              tires: "CUMPLE",
+              mirrors: "CUMPLE",
+              seat_belt: "CUMPLE",
+              fire_extinguisher: "CUMPLE",
+              warning_lights: "CUMPLE",
+              leaks: "CUMPLE",
+              guards: "CUMPLE",
+              signage: "CUMPLE",
+              specific_devices: "CUMPLE",
             },
           });
           machine = {
@@ -572,7 +583,7 @@ describe("HomePage", () => {
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.click(
-      await screen.findByRole("tab", { name: /06.*maquinarias/i }),
+      await screen.findByRole("tab", { name: /07.*maquinarias/i }),
     );
 
     expect(
