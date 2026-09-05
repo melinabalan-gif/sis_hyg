@@ -32,11 +32,13 @@ class SubjectKind(StrEnum):
 class DocumentReviewStatus(StrEnum):
     PENDIENTE = "PENDIENTE"
     APROBADO = "APROBADO"
+    OBSERVADO = "OBSERVADO"
     RECHAZADO = "RECHAZADO"
 
 
 class DocumentDisplayStatus(StrEnum):
     PENDIENTE = "PENDIENTE"
+    OBSERVADO = "OBSERVADO"
     RECHAZADO = "RECHAZADO"
     FALTANTE = "FALTANTE"
     VENCIDO = "VENCIDO"
@@ -48,6 +50,13 @@ class MachineStatus(StrEnum):
     OPERATIVA = "OPERATIVA"
     CON_OBSERVACIONES = "CON_OBSERVACIONES"
     FUERA_DE_SERVICIO = "FUERA_DE_SERVICIO"
+
+
+class PersonHabilitationStatus(StrEnum):
+    PENDIENTE_VERIFICACION = "PENDIENTE_VERIFICACION"
+    HABILITADO = "HABILITADO"
+    DOCUMENTACION_INCOMPLETA = "DOCUMENTACION_INCOMPLETA"
+    NO_HABILITADO = "NO_HABILITADO"
 
 
 class AuditStatus(StrEnum):
@@ -77,7 +86,6 @@ class PermissionScope(StrEnum):
 class ContractorParticipationType(StrEnum):
     PRINCIPAL = "PRINCIPAL"
     CONTRACTOR = "CONTRACTOR"
-    SUBCONTRACTOR = "SUBCONTRACTOR"
 
 
 class ControlResult(StrEnum):
@@ -99,10 +107,28 @@ class VerificationDecision(StrEnum):
     RECHAZADA = "RECHAZADA"
 
 
+class MachineChecklistResult(StrEnum):
+    CUMPLE = "CUMPLE"
+    NO_CUMPLE = "NO_CUMPLE"
+    NO_APLICA = "NO_APLICA"
+    NO_VERIFICADO = "NO_VERIFICADO"
+
+
 class WorksiteCreate(StrictSchema):
     code: Code
     name: ShortText
-    jurisdiction: ShortText
+    country: ShortText | None = None
+    province: ShortText | None = None
+    municipality: ShortText | None = None
+    jurisdiction: ShortText | None = None
+
+    @model_validator(mode="after")
+    def validate_jurisdiction(self) -> Self:
+        if all(value is not None for value in (self.country, self.province, self.municipality)):
+            return self
+        if self.jurisdiction is not None:
+            return self
+        raise ValueError("jurisdiction o country, province y municipality son obligatorios")
 
 
 class WorksiteSummary(StrictSchema):
@@ -110,6 +136,9 @@ class WorksiteSummary(StrictSchema):
     code: str
     name: str
     jurisdiction: str
+    country: str | None = None
+    province: str | None = None
+    municipality: str | None = None
     status: Literal["ACTIVE", "ARCHIVED"]
     version: int
     created_at: datetime
@@ -163,6 +192,25 @@ class PersonView(StrictSchema):
     profession_code: ProfessionCode
     started_on: date
     ended_on: date | None
+    habilitation_status: PersonHabilitationStatus = PersonHabilitationStatus.PENDIENTE_VERIFICACION
+    habilitation_verified_by: UUID | None = None
+    habilitation_verified_at: datetime | None = None
+    habilitation_observation: str | None = None
+
+
+class PersonVerificationCreate(StrictSchema):
+    status: PersonHabilitationStatus
+    function_label: ShortText
+    observation: LongText | None = None
+
+
+class PersonVerificationView(StrictSchema):
+    id: UUID
+    status: PersonHabilitationStatus
+    function_label: str
+    verified_by: UUID
+    verified_at: datetime
+    observation: str | None
 
 
 class DocumentCreate(StrictSchema):
@@ -227,6 +275,23 @@ class DocumentView(StrictSchema):
     notes: str | None
     created_at: datetime
     versions: list[DocumentVersionView] = Field(default_factory=list)
+    uploaded_by: UUID | None = None
+    uploaded_at: datetime | None = None
+    reviews: list[DocumentReviewView] = Field(default_factory=list)
+
+
+class DocumentReviewCreate(StrictSchema):
+    result: Literal["APROBADO", "OBSERVADO", "RECHAZADO"]
+    foundation: LongText
+
+
+class DocumentReviewView(StrictSchema):
+    id: UUID
+    reviewer: UUID
+    reviewer_function: str
+    reviewed_at: datetime
+    result: Literal["APROBADO", "OBSERVADO", "RECHAZADO"]
+    foundation: str
 
 
 class MachineCreate(DatedAssignmentCreate):
@@ -235,6 +300,12 @@ class MachineCreate(DatedAssignmentCreate):
     status: MachineStatus
     reason: LongText
     contractor_id: UUID | None = None
+    machine_type: ShortText | None = None
+    brand: ShortText | None = None
+    model: ShortText | None = None
+    license_plate: ShortText | None = None
+    owner_contractor_id: UUID | None = None
+    operator_person_id: UUID | None = None
 
 
 class MachineInspectionCreate(StrictSchema):
@@ -242,6 +313,8 @@ class MachineInspectionCreate(StrictSchema):
         validation_alias=AliasChoices("resulting_status", "status")
     )
     reason: LongText
+    checklist: dict[str, MachineChecklistResult] = Field(default_factory=dict)
+    evidence_note: LongText | None = None
 
 
 class MachineInspectionView(StrictSchema):
@@ -250,6 +323,22 @@ class MachineInspectionView(StrictSchema):
     reason: str
     actor_id: UUID
     inspected_at: datetime
+    checklist: dict[str, MachineChecklistResult] = Field(default_factory=dict)
+    evidence_note: str | None = None
+    inspector_function: str | None = None
+    validations: list[MachineInspectionValidationView] = Field(default_factory=list)
+
+
+class MachineInspectionValidationCreate(StrictSchema):
+    notes: LongText
+
+
+class MachineInspectionValidationView(StrictSchema):
+    id: UUID
+    validated_by: UUID
+    validator_function: str
+    notes: str
+    validated_at: datetime
 
 
 class MachineView(StrictSchema):
@@ -265,6 +354,11 @@ class MachineView(StrictSchema):
     started_on: date
     ended_on: date | None
     inspections: list[MachineInspectionView] = Field(default_factory=list)
+    machine_type: str | None = None
+    brand: str | None = None
+    model: str | None = None
+    license_plate: str | None = None
+    operator_person_id: UUID | None = None
 
 
 class AuditControlCreate(StrictSchema):
@@ -273,6 +367,7 @@ class AuditControlCreate(StrictSchema):
     reason: LongText | None = None
     severity_code: Code | None = None
     finding_description: LongText | None = None
+    affected_contractor_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_result_details(self) -> Self:
@@ -286,6 +381,8 @@ class AuditControlCreate(StrictSchema):
                 )
         elif self.severity_code is not None or self.finding_description is not None:
             raise ValueError("severity_code y finding_description sólo se permiten para NO_CUMPLE")
+        elif self.affected_contractor_id is not None:
+            raise ValueError("affected_contractor_id sólo se permite para NO_CUMPLE")
         return self
 
 
@@ -346,7 +443,7 @@ class FindingEventView(StrictSchema):
 class FindingView(StrictSchema):
     id: UUID
     audit_id: UUID
-    audit_control_id: UUID
+    audit_control_id: UUID | None
     title: str
     description: str
     severity_code: str
@@ -355,9 +452,19 @@ class FindingView(StrictSchema):
     overdue: bool
     closed_at: datetime | None
     created_by: UUID
+    created_at: datetime
+    affected_contractor_id: UUID | None = None
+    affected_contractor_name: str | None = None
     corrections: list[CorrectionView] = Field(default_factory=list)
     verifications: list[VerificationView] = Field(default_factory=list)
     events: list[FindingEventView] = Field(default_factory=list)
+    source_label: str | None = None
+
+
+class UnregisteredPersonFindingCreate(StrictSchema):
+    description: LongText
+    severity_code: Code = "MEDIA"
+    affected_contractor_id: UUID | None = None
 
 
 class DocumentMetrics(StrictSchema):
@@ -419,6 +526,9 @@ class AuditView(StrictSchema):
     audit_date: date | None = None
     available_controls: list[AuditCatalogControlView] = Field(default_factory=list)
     controls: list[AuditControlView] = Field(default_factory=list)
+    auditor_name: str | None = None
+    auditor_function: str | None = None
+    responsible_professional_name: str | None = None
 
 
 class AuditControlMutationResponse(StrictSchema):
@@ -452,6 +562,24 @@ class WorksiteStageView(StrictSchema):
     notes: str | None
     created_at: datetime
     updated_at: datetime
+    status: Literal["PLANIFICADA", "ACTIVA", "CERRADA"] = "ACTIVA"
+    history: list[WorksiteStageEventView] = Field(default_factory=list)
+
+
+class WorksiteStageUpdate(StrictSchema):
+    name: ShortText | None = None
+    ended_on: date | None = None
+    sector: ShortText | None = None
+    notes: LongText | None = None
+    status: Literal["PLANIFICADA", "ACTIVA", "CERRADA"] | None = None
+
+
+class WorksiteStageEventView(StrictSchema):
+    id: UUID
+    event_type: str
+    actor_id: UUID
+    detail: str
+    created_at: datetime
 
 
 class WorksiteFunctionalAssignmentCreate(StrictSchema):
@@ -520,6 +648,8 @@ def derive_document_status(
     review = DocumentReviewStatus(review_status)
     if review is DocumentReviewStatus.PENDIENTE:
         return DocumentDisplayStatus.PENDIENTE
+    if review is DocumentReviewStatus.OBSERVADO:
+        return DocumentDisplayStatus.OBSERVADO
     if review is DocumentReviewStatus.RECHAZADO:
         return DocumentDisplayStatus.RECHAZADO
     if expires_on is None:

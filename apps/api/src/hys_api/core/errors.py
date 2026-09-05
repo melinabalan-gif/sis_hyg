@@ -104,7 +104,7 @@ async def validation_exception_handler(
     errors = [
         ProblemFieldError(
             location=[part for part in error["loc"] if isinstance(part, (str, int))],
-            message=str(error["msg"]),
+            message=_user_validation_message(error),
             code=str(error["type"]),
         )
         for error in exc.errors()
@@ -117,6 +117,45 @@ async def validation_exception_handler(
         detail="Revisá los campos indicados antes de reintentar.",
         errors=errors,
     )
+
+
+def _user_validation_message(error: dict[str, Any]) -> str:
+    """Keep implementation details such as regexes out of the HTTP contract."""
+
+    error_type = str(error.get("type", ""))
+    location = [part for part in error.get("loc", []) if isinstance(part, (str, int))]
+    field = str(location[-1]) if location else "campo"
+    if error_type == "string_pattern_mismatch":
+        if field in {"code", "catalog_code", "internal_code"}:
+            return "Usá sólo letras mayúsculas, números, puntos y guiones en este código."
+        return "El valor tiene un formato no válido."
+    if error_type == "missing":
+        return "Completá este campo."
+    if error_type in {"string_too_short", "string_too_long"}:
+        return "El texto ingresado no tiene una longitud válida."
+    if error_type in {"date_from_datetime_parsing", "date_parsing"}:
+        return "Ingresá una fecha válida."
+    if error_type == "enum":
+        return "Seleccioná una opción válida."
+
+    message = str(error.get("msg", "El valor no es válido."))
+    replacements = {
+        "jurisdiction o country, province y municipality son obligatorios":
+            "Completá país, provincia y municipio.",
+        "ended_on debe ser posterior a started_on":
+            "La fecha de fin debe ser posterior a la fecha de inicio.",
+        "valid_to debe ser posterior a valid_from":
+            "La fecha de fin de vigencia debe ser posterior a la fecha de inicio.",
+        "expires_on no puede ser anterior a valid_from":
+            "La fecha de vencimiento no puede ser anterior a la fecha de inicio.",
+        "reason es obligatorio para NO_APLICA y NO_VERIFICADO":
+            "Indicá un motivo cuando el resultado sea No aplica o No verificado.",
+        "severity_code y finding_description son obligatorios para NO_CUMPLE":
+            "Indicá la severidad y la descripción del desvío cuando el resultado sea No cumple.",
+        "severity_code y finding_description sólo se permiten para NO_CUMPLE":
+            "La severidad y la descripción sólo corresponden a un resultado No cumple.",
+    }
+    return replacements.get(message, message)
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:

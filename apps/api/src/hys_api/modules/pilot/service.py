@@ -8,7 +8,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends
-from sqlalchemy import and_, exists, or_, select
+from sqlalchemy import and_, exists, literal, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -31,6 +31,7 @@ from hys_api.modules.pilot.models import (
     ControlCatalogVersion,
     Correction,
     Document,
+    DocumentReview,
     DocumentVersion,
     Finding,
     FindingControl,
@@ -38,16 +39,19 @@ from hys_api.modules.pilot.models import (
     Machine,
     MachineDocument,
     MachineInspection,
+    MachineInspectionValidation,
     MachineWorksiteAssignment,
     Person,
     PersonAssignment,
     PersonDocument,
+    PersonVerification,
     SeverityCatalogVersion,
     Verification,
     WorksiteContractor,
     WorksiteDocument,
     WorksiteFunctionalAssignment,
     WorksiteStage,
+    WorksiteStageEvent,
 )
 from hys_api.modules.pilot.schemas import (
     AuditControlCreate,
@@ -61,6 +65,7 @@ from hys_api.modules.pilot.schemas import (
     CorrectionCreate,
     CorrectionView,
     DocumentCreate,
+    DocumentReviewCreate,
     DocumentVersionCreate,
     DocumentVersionView,
     DocumentView,
@@ -69,11 +74,14 @@ from hys_api.modules.pilot.schemas import (
     FindingView,
     MachineCreate,
     MachineInspectionCreate,
+    MachineInspectionValidationCreate,
     MachineInspectionView,
     MachineView,
     PersonCreate,
+    PersonVerificationCreate,
     PersonView,
     SubjectKind,
+    UnregisteredPersonFindingCreate,
     VerificationCreate,
     VerificationDecision,
     VerificationView,
@@ -82,6 +90,8 @@ from hys_api.modules.pilot.schemas import (
     WorksiteFunctionalAssignmentCreate,
     WorksiteFunctionalAssignmentView,
     WorksiteStageCreate,
+    WorksiteStageEventView,
+    WorksiteStageUpdate,
     WorksiteStageView,
     WorksiteSummary,
     derive_document_status,
@@ -96,6 +106,16 @@ _CONTRACTOR_FUNCTIONS = frozenset(
 _ALL_FUNCTIONS = _PROJECT_FUNCTIONS | _CONTRACTOR_FUNCTIONS
 _RESPONSIBLE_FUNCTIONS = frozenset(
     {"RESPONSABLE_HYS_PROYECTO", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"}
+)
+_CONTRACTOR_ACTOR_KEYS = frozenset(
+    {"tecnico", "responsable-suplente", "licenciado-contratista-principal"}
+)
+_DOCUMENT_REVIEW_FUNCTIONS = frozenset(
+    {
+        "AUDITOR_DELEGADO_PROYECTO",
+        "RESPONSABLE_HYS_PROYECTO",
+        "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+    }
 )
 
 
@@ -154,23 +174,29 @@ class PilotService:
     async def list_worksites(self) -> list[WorksiteSummary]:
         today = _today_in_argentina()
         allowed_scope = self._allowed_assignment_scope()
+        organization_reader = self.context.actor.role is PilotRole.CONTRATISTA
         rows = await self.session.scalars(
             select(Worksite)
             .where(
                 Worksite.organization_id == PILOT_ORGANIZATION_ID,
                 Worksite.deleted_at.is_(None),
-                exists(
-                    select(WorksiteFunctionalAssignment.id).where(
-                        WorksiteFunctionalAssignment.organization_id == Worksite.organization_id,
-                        WorksiteFunctionalAssignment.worksite_id == Worksite.id,
-                        WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
-                        allowed_scope,
-                        WorksiteFunctionalAssignment.valid_from <= today,
-                        or_(
-                            WorksiteFunctionalAssignment.valid_to.is_(None),
-                            WorksiteFunctionalAssignment.valid_to > today,
-                        ),
-                    )
+                or_(
+                    Worksite.created_by_actor_id == self.context.actor.id,
+                    literal(organization_reader),
+                    exists(
+                        select(WorksiteFunctionalAssignment.id).where(
+                            WorksiteFunctionalAssignment.organization_id
+                            == Worksite.organization_id,
+                            WorksiteFunctionalAssignment.worksite_id == Worksite.id,
+                            WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+                            allowed_scope,
+                            WorksiteFunctionalAssignment.valid_from <= today,
+                            or_(
+                                WorksiteFunctionalAssignment.valid_to.is_(None),
+                                WorksiteFunctionalAssignment.valid_to > today,
+                            ),
+                        )
+                    ),
                 ),
             )
             .order_by(Worksite.code, Worksite.id)
@@ -179,11 +205,27 @@ class PilotService:
 
     async def create_worksite(self, payload: WorksiteCreate) -> WorksiteSummary:
         self._require_resource_write()
+        if self.context.actor.key in {"responsable-suplente", "licenciado-contratista-principal"}:
+            raise ProblemException(
+                status=403,
+                code="pilot_project_delegation_required",
+                title="Delegación de proyecto requerida",
+                detail="El Licenciado H&S de una contratista no puede crear obras.",
+            )
         worksite = Worksite(
             organization_id=PILOT_ORGANIZATION_ID,
             code=payload.code,
             name=payload.name,
-            jurisdiction=payload.jurisdiction,
+            country=payload.country,
+            province=payload.province,
+            municipality=payload.municipality,
+            jurisdiction=payload.jurisdiction
+            or "/".join(
+                value
+                for value in (payload.country, payload.province, payload.municipality)
+                if value
+            ),
+            created_by_actor_id=self.context.actor.id,
         )
         self.session.add(worksite)
         await self._flush_or_conflict(
@@ -191,16 +233,11 @@ class PilotService:
             "Ya existe una obra sintética con ese código.",
         )
         await self.session.refresh(worksite)
-        self._add_compatibility_assignments(worksite.id)
-        await self._flush_or_conflict(
-            "worksite_assignment_conflict",
-            "No se pudieron preparar las asignaciones sintéticas de la obra.",
-        )
         return self._worksite_summary(worksite)
 
     async def get_worksite_detail(self, worksite_id: UUID) -> WorksiteDetail:
         worksite = await self._get_worksite(worksite_id)
-        await self._require_current_function(worksite_id, _ALL_FUNCTIONS)
+        await self._require_read_access(worksite_id)
         contractors = await self._contractors_for_worksite(worksite_id)
         functional_assignments = await self._functional_assignments_for_worksite(worksite_id)
         people = await self._people_for_worksite(worksite_id)
@@ -209,6 +246,53 @@ class PilotService:
         stages = await self._stages_for_worksite(worksite_id)
         audits = await self._audits_for_worksite(worksite_id)
         findings = await self._findings_for_worksite(worksite_id)
+        contractor_scope = await self._contractor_scope_ids(worksite_id)
+        if contractor_scope:
+            visible_contractor_ids = {
+                item.id for item in contractors if item.id in contractor_scope
+            }
+            visible_people = [
+                item for item in people if item.contractor_id in visible_contractor_ids
+            ]
+            visible_person_ids = {item.id for item in visible_people}
+            visible_machines = [
+                item
+                for item in machines
+                if item.contractor_id in visible_contractor_ids
+            ]
+            visible_machine_ids = {item.id for item in visible_machines}
+            contractors = [item for item in contractors if item.id in visible_contractor_ids]
+            people = visible_people
+            machines = visible_machines
+            documents = [
+                item
+                for item in documents
+                if (
+                    item.subject_kind is SubjectKind.WORKSITE
+                )
+                or (
+                    item.subject_kind is SubjectKind.CONTRACTOR
+                    and item.subject_id in visible_contractor_ids
+                )
+                or (
+                    item.subject_kind is SubjectKind.PERSON
+                    and item.subject_id in visible_person_ids
+                )
+                or (
+                    item.subject_kind is SubjectKind.MACHINE
+                    and item.subject_id in visible_machine_ids
+                )
+            ]
+            functional_assignments = [
+                item
+                for item in functional_assignments
+                if item.represented_contractor_id in visible_contractor_ids
+            ]
+            findings = [
+                item
+                for item in findings
+                if item.affected_contractor_id in visible_contractor_ids
+            ]
         metrics = derive_worksite_metrics(
             documents,
             findings,
@@ -238,6 +322,7 @@ class PilotService:
     ) -> WorksiteStageView:
         self._require_resource_write()
         await self._get_active_worksite(worksite_id)
+        await self._authorize_worksite_write_scope(worksite_id)
         stage = WorksiteStage(
             organization_id=PILOT_ORGANIZATION_ID,
             worksite_id=worksite_id,
@@ -254,7 +339,63 @@ class PilotService:
             "No se pudo crear la etapa sintética de la obra.",
         )
         await self.session.refresh(stage)
-        return self._worksite_stage_view(stage)
+        self.session.add(
+            WorksiteStageEvent(
+                organization_id=PILOT_ORGANIZATION_ID,
+                stage_id=stage.id,
+                actor_id=self.context.actor.id,
+                event_type="CREATED",
+                detail="Etapa creada en la línea temporal de la obra.",
+            )
+        )
+        await self.session.flush()
+        return await self._worksite_stage_view_with_history(stage)
+
+    async def update_worksite_stage(
+        self,
+        worksite_id: UUID,
+        stage_id: UUID,
+        payload: WorksiteStageUpdate,
+    ) -> WorksiteStageView:
+        self._require_resource_write()
+        await self._get_active_worksite(worksite_id)
+        await self._authorize_worksite_write_scope(worksite_id)
+        stage = await self.session.scalar(
+            select(WorksiteStage)
+            .where(
+                WorksiteStage.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteStage.worksite_id == worksite_id,
+                WorksiteStage.id == stage_id,
+            )
+            .with_for_update()
+        )
+        if stage is None:
+            raise _not_found()
+        changes: list[str] = []
+        for field in ("name", "ended_on", "sector", "notes"):
+            value = getattr(payload, field)
+            if value is not None:
+                setattr(stage, field, value)
+                changes.append(field)
+        if payload.status == "CERRADA" and stage.ended_on is None:
+            stage.ended_on = _today_in_argentina()
+            changes.append("status")
+        elif payload.status is not None:
+            changes.append("status")
+        if payload.status is not None:
+            stage.status = payload.status
+        if changes:
+            self.session.add(
+                WorksiteStageEvent(
+                    organization_id=PILOT_ORGANIZATION_ID,
+                    stage_id=stage.id,
+                    actor_id=self.context.actor.id,
+                    event_type="UPDATED",
+                    detail=f"Campos modificados: {', '.join(changes)}.",
+                )
+            )
+        await self.session.flush()
+        return await self._worksite_stage_view_with_history(stage)
 
     async def create_contractor(
         self,
@@ -264,6 +405,7 @@ class PilotService:
         self._require_resource_write()
         await self._get_active_worksite(worksite_id)
         participation_type = payload.participation_type
+        scope_ids = await self._contractor_scope_ids(worksite_id)
         if participation_type is None:
             principal_id = await self.session.scalar(
                 select(WorksiteContractor.contractor_id)
@@ -280,7 +422,20 @@ class PilotService:
                 else ContractorParticipationType.PRINCIPAL
             )
         parent_id = payload.parent_contracting_company_id
+        if participation_type is not ContractorParticipationType.PRINCIPAL and parent_id is None:
+            if len(scope_ids) == 1:
+                parent_id = next(iter(scope_ids))
         if participation_type is ContractorParticipationType.PRINCIPAL:
+            if scope_ids:
+                raise ProblemException(
+                    status=403,
+                    code="pilot_contractor_scope_denied",
+                    title="Alcance de contratista insuficiente",
+                    detail=(
+                        "Un profesional de contratista sólo puede registrar empresas "
+                        "dependientes de la empresa que representa."
+                    ),
+                )
             if parent_id is not None:
                 raise _unprocessable(
                     "principal_parent_forbidden",
@@ -292,6 +447,9 @@ class PilotService:
                     "contractor_parent_required",
                     "Un contratista no principal debe indicar su empresa contratante.",
                 )
+            await self._authorize_worksite_write_scope(
+                worksite_id, contractor_ids={parent_id}, require_contractor_target=True
+            )
             parent = await self.session.scalar(
                 select(WorksiteContractor).where(
                     WorksiteContractor.organization_id == PILOT_ORGANIZATION_ID,
@@ -301,16 +459,6 @@ class PilotService:
             )
             if parent is None:
                 raise _not_found()
-            expected_parent = (
-                ContractorParticipationType.PRINCIPAL
-                if participation_type is ContractorParticipationType.CONTRACTOR
-                else ContractorParticipationType.CONTRACTOR
-            )
-            if parent.participation_type != expected_parent.value:
-                raise _unprocessable(
-                    "invalid_contractor_parent",
-                    "La jerarquía exige CONTRACTOR bajo PRINCIPAL y SUBCONTRACTOR bajo CONTRACTOR.",
-                )
         contractor = Contractor(
             organization_id=PILOT_ORGANIZATION_ID,
             legal_name=payload.legal_name,
@@ -342,6 +490,9 @@ class PilotService:
     async def create_person(self, worksite_id: UUID, payload: PersonCreate) -> PersonView:
         self._require_resource_write()
         await self._get_active_worksite(worksite_id)
+        await self._authorize_worksite_write_scope(
+            worksite_id, contractor_ids={payload.contractor_id}, require_contractor_target=True
+        )
         started_on = payload.started_on or _today_in_argentina()
         await self._get_contractor_for_worksite(
             worksite_id,
@@ -373,6 +524,102 @@ class PilotService:
         await self.session.refresh(assignment)
         return self._person_view(person, assignment)
 
+    async def verify_person(
+        self,
+        worksite_id: UUID,
+        person_id: UUID,
+        payload: PersonVerificationCreate,
+    ) -> PersonView:
+        """Register habilitation without changing the person's master record."""
+
+        require_pilot_role(self.context.actor, PilotRole.AUDITOR, PilotRole.RESPONSABLE_HYS)
+        await self._get_active_worksite(worksite_id)
+        assignment = await self.session.scalar(
+            select(PersonAssignment).where(
+                PersonAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                PersonAssignment.worksite_id == worksite_id,
+                PersonAssignment.person_id == person_id,
+            )
+        )
+        person = await self._get_person_for_worksite(worksite_id, person_id)
+        if assignment is None or person is None:
+            raise _not_found()
+        function_assignment = await self._require_current_function(
+            worksite_id, {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"}
+        )
+        verification = PersonVerification(
+            organization_id=PILOT_ORGANIZATION_ID,
+            worksite_id=worksite_id,
+            person_id=person_id,
+            status=payload.status.value,
+            function_label=payload.function_label,
+            verified_by_actor_id=self.context.actor.id,
+            observation=payload.observation,
+        )
+        self.session.add(verification)
+        await self._flush_or_conflict(
+            "person_verification_conflict", "No se pudo registrar la habilitación."
+        )
+        await self.session.refresh(verification)
+        # Keep the function assignment in the audit trail while returning the
+        # same person representation used by the worksite detail.
+        del function_assignment
+        return self._person_view(person, assignment, verification)
+
+    async def create_unregistered_person_finding(
+        self,
+        audit_id: UUID,
+        payload: UnregisteredPersonFindingCreate,
+    ) -> FindingView:
+        """Create a finding directly; never create a silent personnel record."""
+
+        self._require_audit_write()
+        audit = await self._get_audit(audit_id)
+        if audit.status != "EN_CURSO":
+            raise _conflict(
+                "audit_not_in_progress",
+                "Sólo se puede registrar una persona no registrada durante una auditoría en curso.",
+            )
+        await self._require_current_function(
+            audit.worksite_id, {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"}
+        )
+        severity = await self._get_severity(payload.severity_code)
+        if payload.affected_contractor_id is not None:
+            await self._get_worksite_contractor_assignment(
+                audit.worksite_id, payload.affected_contractor_id
+            )
+        finding = Finding(
+            organization_id=PILOT_ORGANIZATION_ID,
+            worksite_id=audit.worksite_id,
+            audit_id=audit.id,
+            title="Persona no registrada en obra",
+            description=payload.description,
+            status="ABIERTO",
+            severity_catalog_version_id=severity.id,
+            severity_code=severity.code,
+            severity_label=severity.label,
+            due_at=_utc_now() + timedelta(days=severity.default_due_days),
+            created_by_actor_id=self.context.actor.id,
+            affected_contractor_id=payload.affected_contractor_id,
+        )
+        self.session.add(finding)
+        await self.session.flush()
+        self.session.add(
+            FindingEvent(
+                organization_id=PILOT_ORGANIZATION_ID,
+                finding_id=finding.id,
+                event_type="UNREGISTERED_PERSON_FOUND",
+                from_status=None,
+                to_status="ABIERTO",
+                actor_id=self.context.actor.id,
+                detail="Hallazgo creado sin incorporar una ficha de personal.",
+            )
+        )
+        await self._flush_or_conflict(
+            "unregistered_person_finding_conflict", "No se pudo registrar el hallazgo."
+        )
+        return await self._finding_view(finding)
+
     async def create_document(
         self,
         worksite_id: UUID,
@@ -381,14 +628,24 @@ class PilotService:
         self._require_resource_write()
         worksite = await self._get_active_worksite(worksite_id)
         subject_name = await self._validate_document_subject(worksite, payload)
+        subject_contractor_id = await self._document_subject_contractor_id(
+            worksite_id, payload.subject_kind, payload.subject_id
+        )
+        await self._authorize_worksite_write_scope(
+            worksite_id,
+            contractor_ids={subject_contractor_id} if subject_contractor_id else set(),
+            require_contractor_target=subject_contractor_id is not None,
+        )
         document = Document(
             organization_id=PILOT_ORGANIZATION_ID,
             title=payload.title,
             document_type=payload.document_type,
-            review_status=payload.review_status.value,
+            review_status="PENDIENTE",
             valid_from=payload.valid_from,
             expires_on=payload.expires_on,
             notes=payload.notes,
+            uploaded_by_actor_id=self.context.actor.id,
+            uploaded_at=_utc_now(),
         )
         self.session.add(document)
         await self.session.flush()
@@ -398,7 +655,7 @@ class PilotService:
             version_number=1,
             title=payload.title,
             document_type=payload.document_type,
-            review_status=payload.review_status.value,
+            review_status="PENDIENTE",
             valid_from=payload.valid_from,
             expires_on=payload.expires_on,
             notes=payload.notes,
@@ -426,6 +683,68 @@ class PilotService:
             versions=[self._document_version_view(document_version)],
         )
 
+    async def review_document(
+        self,
+        worksite_id: UUID,
+        document_id: UUID,
+        payload: DocumentReviewCreate,
+    ) -> DocumentView:
+        """Record a review separately from document loading and versioning."""
+
+        require_pilot_role(self.context.actor, PilotRole.AUDITOR, PilotRole.RESPONSABLE_HYS)
+        await self._get_active_worksite(worksite_id)
+        document = await self.session.scalar(
+            select(Document)
+            .where(Document.organization_id == PILOT_ORGANIZATION_ID, Document.id == document_id)
+            .with_for_update()
+        )
+        if document is None:
+            raise _not_found()
+        subject = await self._document_subject_for_worksite(worksite_id, document.id)
+        if subject is None:
+            raise _not_found()
+        assignment = await self._require_current_function(
+            worksite_id, _DOCUMENT_REVIEW_FUNCTIONS
+        )
+        subject_contractor_id = await self._subject_contractor_id(
+            worksite_id, subject[0], subject[1]
+        )
+        await self._authorize_worksite_write_scope(
+            worksite_id,
+            contractor_ids={subject_contractor_id} if subject_contractor_id else set(),
+            require_contractor_target=subject_contractor_id is not None,
+        )
+        if document.uploaded_by_actor_id == self.context.actor.id:
+            raise _conflict(
+                "document_reviewer_must_be_independent",
+                "La persona que cargó el documento no puede revisarlo.",
+            )
+        document.review_status = payload.result
+        review = DocumentReview(
+            organization_id=PILOT_ORGANIZATION_ID,
+            document_id=document.id,
+            reviewer_actor_id=self.context.actor.id,
+            reviewer_function=assignment.function_code,
+            result=payload.result,
+            foundation=payload.foundation,
+        )
+        self.session.add(review)
+        await self._flush_or_conflict(
+            "document_review_conflict", "No se pudo registrar la revisión documental."
+        )
+        await self.session.refresh(document)
+        await self.session.refresh(review)
+        versions = (await self._document_versions_for_documents({document.id})).get(document.id, [])
+        reviews = (await self._document_reviews_for_documents({document.id})).get(document.id, [])
+        return self._document_view(
+            document,
+            subject_kind=subject[0],
+            subject_id=subject[1],
+            subject_name=subject[2],
+            versions=versions,
+            reviews=reviews,
+        )
+
     async def create_document_version(
         self,
         worksite_id: UUID,
@@ -450,11 +769,19 @@ class PilotService:
         subject = await self._document_subject_for_worksite(worksite.id, document.id)
         if subject is None:
             raise _not_found()
+        subject_contractor_id = await self._subject_contractor_id(
+            worksite.id, subject[0], subject[1]
+        )
+        await self._authorize_worksite_write_scope(
+            worksite.id,
+            contractor_ids={subject_contractor_id} if subject_contractor_id else set(),
+            require_contractor_target=subject_contractor_id is not None,
+        )
 
         next_version = document.version + 1
         document.title = payload.title
         document.document_type = payload.document_type
-        document.review_status = payload.review_status.value
+        document.review_status = "PENDIENTE"
         document.valid_from = payload.valid_from
         document.expires_on = payload.expires_on
         document.notes = payload.notes
@@ -465,7 +792,7 @@ class PilotService:
             version_number=next_version,
             title=payload.title,
             document_type=payload.document_type,
-            review_status=payload.review_status.value,
+            review_status="PENDIENTE",
             valid_from=payload.valid_from,
             expires_on=payload.expires_on,
             notes=payload.notes,
@@ -501,11 +828,41 @@ class PilotService:
                 payload.contractor_id,
                 on_date=started_on,
             )
+        owner_contractor_id = payload.owner_contractor_id or payload.contractor_id
+        if owner_contractor_id is not None:
+            await self._get_contractor_for_worksite(
+                worksite_id,
+                owner_contractor_id,
+                on_date=started_on,
+            )
+        target_contractor_ids = {
+            contractor_id
+            for contractor_id in (payload.contractor_id, owner_contractor_id)
+            if contractor_id is not None
+        }
+        if payload.operator_person_id is not None:
+            operator_assignment = await self._get_person_assignment_for_worksite(
+                worksite_id, payload.operator_person_id, on_date=started_on
+            )
+            if operator_assignment is None:
+                raise _not_found()
+            target_contractor_ids.add(operator_assignment.contractor_id)
+        await self._authorize_worksite_write_scope(
+            worksite_id,
+            contractor_ids=target_contractor_ids,
+            require_contractor_target=bool(target_contractor_ids),
+        )
         machine = Machine(
             organization_id=PILOT_ORGANIZATION_ID,
             internal_code=payload.internal_code,
             description=payload.description,
             status=payload.status.value,
+            machine_type=payload.machine_type,
+            brand=payload.brand,
+            model=payload.model,
+            license_plate=payload.license_plate,
+            owner_contractor_id=owner_contractor_id,
+            operator_person_id=payload.operator_person_id,
         )
         self.session.add(machine)
         await self._flush_or_conflict(
@@ -526,6 +883,9 @@ class PilotService:
             worksite_id=worksite_id,
             resulting_status=payload.status.value,
             reason=payload.reason,
+            checklist={},
+            evidence_note=None,
+            inspector_function=self._actor_function_label(),
             actor_id=self.context.actor.id,
         )
         self.session.add_all([assignment, inspection])
@@ -584,6 +944,11 @@ class PilotService:
         )
         if assignment is None:
             raise _not_found()
+        await self._authorize_worksite_write_scope(
+            worksite_id,
+            contractor_ids={assignment.contractor_id} if assignment.contractor_id else set(),
+            require_contractor_target=assignment.contractor_id is not None,
+        )
 
         machine.status = payload.resulting_status.value
         machine.version += 1
@@ -593,6 +958,9 @@ class PilotService:
             worksite_id=worksite_id,
             resulting_status=payload.resulting_status.value,
             reason=payload.reason,
+            checklist={key: value.value for key, value in payload.checklist.items()},
+            evidence_note=payload.evidence_note,
+            inspector_function=self._actor_function_label(),
             actor_id=self.context.actor.id,
         )
         self.session.add(inspection)
@@ -619,6 +987,70 @@ class PilotService:
         """Compatibility name for the machine inspection use case."""
 
         return await self.create_machine_inspection(worksite_id, machine_id, payload)
+
+    async def validate_machine_inspection(
+        self,
+        worksite_id: UUID,
+        machine_id: UUID,
+        inspection_id: UUID,
+        payload: MachineInspectionValidationCreate,
+    ) -> MachineView:
+        require_pilot_role(self.context.actor, PilotRole.AUDITOR, PilotRole.RESPONSABLE_HYS)
+        await self._get_active_worksite(worksite_id)
+        await self._require_current_function(
+            worksite_id, {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"}
+        )
+        inspection = await self.session.scalar(
+            select(MachineInspection).where(
+                MachineInspection.organization_id == PILOT_ORGANIZATION_ID,
+                MachineInspection.id == inspection_id,
+                MachineInspection.machine_id == machine_id,
+                MachineInspection.worksite_id == worksite_id,
+            )
+        )
+        machine = await self.session.scalar(
+            select(Machine)
+            .join(
+                MachineWorksiteAssignment,
+                and_(
+                    MachineWorksiteAssignment.organization_id == Machine.organization_id,
+                    MachineWorksiteAssignment.machine_id == Machine.id,
+                    MachineWorksiteAssignment.worksite_id == worksite_id,
+                ),
+            )
+            .where(Machine.organization_id == PILOT_ORGANIZATION_ID, Machine.id == machine_id)
+        )
+        if inspection is None or machine is None:
+            raise _not_found()
+        if inspection.actor_id == self.context.actor.id:
+            raise _conflict(
+                "segregation_of_duties",
+                "La persona que realizó la inspección no puede validarla.",
+            )
+        validation = MachineInspectionValidation(
+            organization_id=PILOT_ORGANIZATION_ID,
+            inspection_id=inspection.id,
+            validated_by_actor_id=self.context.actor.id,
+            validator_function=self._actor_function_label(),
+            notes=payload.notes,
+        )
+        self.session.add(validation)
+        await self._flush_or_conflict(
+            "machine_inspection_validation_conflict", "No se pudo validar la inspección."
+        )
+        await self.session.refresh(validation)
+        assignment = await self.session.scalar(
+            select(MachineWorksiteAssignment)
+            .where(
+                MachineWorksiteAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                MachineWorksiteAssignment.worksite_id == worksite_id,
+                MachineWorksiteAssignment.machine_id == machine_id,
+            )
+            .limit(1)
+        )
+        if assignment is None:
+            raise _not_found()
+        return self._machine_view(machine, assignment, inspection)
 
     async def start_audit(
         self,
@@ -732,6 +1164,10 @@ class PilotService:
         finding: Finding | None = None
         if payload.result.value == "NO_CUMPLE":
             severity = await self._get_severity(payload.severity_code)
+            if payload.affected_contractor_id is not None:
+                await self._get_worksite_contractor_assignment(
+                    audit.worksite_id, payload.affected_contractor_id
+                )
             finding = Finding(
                 organization_id=PILOT_ORGANIZATION_ID,
                 worksite_id=audit.worksite_id,
@@ -744,6 +1180,7 @@ class PilotService:
                 severity_label=severity.label,
                 due_at=_utc_now() + timedelta(days=severity.default_due_days),
                 created_by_actor_id=self.context.actor.id,
+                affected_contractor_id=payload.affected_contractor_id,
             )
             self.session.add(finding)
             await self.session.flush()
@@ -811,6 +1248,7 @@ class PilotService:
         self._require_correction_write()
         finding = await self._get_finding(finding_id, for_update=True)
         await self._require_current_function(finding.worksite_id, _ALL_FUNCTIONS)
+        await self._authorize_finding_scope(finding)
         if finding.status not in {"ABIERTO", "EN_CORRECCION"}:
             raise _conflict(
                 "finding_not_correctable",
@@ -843,6 +1281,7 @@ class PilotService:
         self._require_correction_write()
         finding = await self._get_finding(finding_id, for_update=True)
         await self._require_current_function(finding.worksite_id, _ALL_FUNCTIONS)
+        await self._authorize_finding_scope(finding)
         if finding.status != "EN_CORRECCION":
             raise _conflict(
                 "finding_not_ready_for_verification",
@@ -882,7 +1321,7 @@ class PilotService:
         finding_id: UUID,
         payload: VerificationCreate,
     ) -> FindingView:
-        require_pilot_role(self.context.actor, PilotRole.RESPONSABLE_HYS)
+        require_pilot_role(self.context.actor, PilotRole.AUDITOR, PilotRole.RESPONSABLE_HYS)
         finding = await self._get_finding(finding_id, for_update=True)
         if finding.status != "PENDIENTE_VERIFICACION":
             raise _conflict(
@@ -895,18 +1334,20 @@ class PilotService:
                 "finding_has_no_correction",
                 "El desvío no tiene una corrección verificable.",
             )
-        if self.context.actor.id in {
-            finding.created_by_actor_id,
-            correction.authored_by_actor_id,
-        }:
+        if self.context.actor.id == correction.authored_by_actor_id:
             raise _conflict(
                 "segregation_of_duties",
-                "El creador del desvío o autor de la corrección no puede verificarla.",
+                "El autor de la corrección no puede verificarla.",
             )
         await self._require_current_function(
             finding.worksite_id,
-            {"RESPONSABLE_HYS_PROYECTO", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"},
+            {
+                "AUDITOR_DELEGADO_PROYECTO",
+                "RESPONSABLE_HYS_PROYECTO",
+                "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+            },
         )
+        await self._authorize_finding_scope(finding)
         previous_status = finding.status
         if payload.decision is VerificationDecision.ACEPTADA:
             target_status = "CERRADO"
@@ -959,8 +1400,108 @@ class PilotService:
         require_pilot_role(
             self.context.actor,
             PilotRole.TECNICO,
-            PilotRole.AUDITOR,
             PilotRole.RESPONSABLE_HYS,
+        )
+
+    def _actor_function_label(self) -> str:
+        labels = {
+            "auditor": "Técnico auditor delegado del proyecto",
+            "tecnico": "Técnico H&S de contratista principal",
+            "responsable": "Licenciado H&S del proyecto",
+            "responsable-suplente": "Licenciado H&S de contratista principal",
+            "licenciado-contratista-principal": "Licenciado H&S de contratista principal",
+            "contratista-principal": "Cuenta organizacional de contratista principal",
+        }
+        return labels.get(self.context.actor.key, "Función H&S del piloto")
+
+    async def _active_functional_assignments(
+        self, worksite_id: UUID, function_codes: Collection[str] = _ALL_FUNCTIONS
+    ) -> list[WorksiteFunctionalAssignment]:
+        today = _today_in_argentina()
+        assignments = await self.session.scalars(
+            select(WorksiteFunctionalAssignment)
+            .where(
+                WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteFunctionalAssignment.worksite_id == worksite_id,
+                WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+                WorksiteFunctionalAssignment.function_code.in_(function_codes),
+                WorksiteFunctionalAssignment.valid_from <= today,
+                or_(
+                    WorksiteFunctionalAssignment.valid_to.is_(None),
+                    WorksiteFunctionalAssignment.valid_to > today,
+                ),
+            )
+            .order_by(WorksiteFunctionalAssignment.valid_from, WorksiteFunctionalAssignment.id)
+        )
+        return list(assignments)
+
+    async def _contractor_scope_ids(self, worksite_id: UUID) -> set[UUID]:
+        if self.context.actor.key not in _CONTRACTOR_ACTOR_KEYS:
+            return set()
+        assignments = await self._active_functional_assignments(worksite_id, _CONTRACTOR_FUNCTIONS)
+        return {
+            assignment.represented_contractor_id
+            for assignment in assignments
+            if assignment.represented_contractor_id is not None
+        }
+
+    async def _authorize_worksite_write_scope(
+        self,
+        worksite_id: UUID,
+        *,
+        contractor_ids: set[UUID] | None = None,
+        require_contractor_target: bool = False,
+    ) -> None:
+        """Enforce the company represented by contractor professionals."""
+
+        if self.context.actor.key not in _CONTRACTOR_ACTOR_KEYS:
+            return
+        if not require_contractor_target and not contractor_ids:
+            return
+        scope_ids = await self._contractor_scope_ids(worksite_id)
+        if not scope_ids:
+            worksite = await self._get_worksite(worksite_id)
+            if worksite.created_by_actor_id == self.context.actor.id:
+                return
+            raise ProblemException(
+                status=403,
+                code="pilot_assignment_required",
+                title="Asignación funcional requerida",
+                detail="El profesional no tiene una representación vigente para esta obra.",
+            )
+        targets = contractor_ids or set()
+        if require_contractor_target and not targets:
+            raise ProblemException(
+                status=403,
+                code="pilot_contractor_scope_denied",
+                title="Alcance de contratista insuficiente",
+                    detail=(
+                        "La operación debe indicar una empresa representada dentro "
+                        "del alcance vigente."
+                    ),
+            )
+        if not targets.issubset(scope_ids):
+            raise ProblemException(
+                status=403,
+                code="pilot_contractor_scope_denied",
+                title="Alcance de contratista insuficiente",
+                detail="La operación excede la empresa representada por el profesional.",
+            )
+
+    async def _authorize_finding_scope(self, finding: Finding) -> None:
+        if self.context.actor.key not in _CONTRACTOR_ACTOR_KEYS:
+            return
+        if finding.affected_contractor_id is None:
+            raise ProblemException(
+                status=403,
+                code="pilot_contractor_scope_denied",
+                title="Alcance de contratista insuficiente",
+                detail="El desvío no tiene una empresa responsable asignada para este alcance.",
+            )
+        await self._authorize_worksite_write_scope(
+            finding.worksite_id,
+            contractor_ids={finding.affected_contractor_id},
+            require_contractor_target=True,
         )
 
     async def _require_audit_editor(self, audit: Audit) -> None:
@@ -1134,7 +1675,24 @@ class PilotService:
                 "La profesión de la persona no coincide con la función funcional solicitada.",
             )
 
+        actor = next(
+            candidate for candidate in PILOT_ACTORS.values() if candidate.id == payload.actor_id
+        )
+        if actor.profession_code != expected_profession:
+            raise _unprocessable(
+                "actor_function_mismatch",
+                "La profesión del actor sintético no coincide con la función solicitada.",
+            )
+
         if function_code in _PROJECT_FUNCTIONS:
+            expected_actor_key = (
+                "auditor" if function_code == "AUDITOR_DELEGADO_PROYECTO" else "responsable"
+            )
+            if actor.key != expected_actor_key:
+                raise _unprocessable(
+                    "project_actor_function_mismatch",
+                    "La función de proyecto debe asignarse al actor profesional del proyecto.",
+                )
             if payload.represented_contractor_id is not None:
                 raise _unprocessable(
                     "project_function_contractor_forbidden",
@@ -1143,18 +1701,40 @@ class PilotService:
         elif payload.represented_contractor_id is None:
             raise _unprocessable(
                 "contractor_principal_required",
-                "Una función del contratista principal debe representar al participante principal.",
+                "Una función de contratista debe indicar la empresa representada.",
             )
         else:
+            expected_actor_key = (
+                "responsable-suplente"
+                if function_code == "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
+                else "tecnico"
+            )
+            if actor.key != expected_actor_key:
+                raise _unprocessable(
+                    "contractor_actor_function_mismatch",
+                    "La función de contratista debe asignarse al profesional sintético "
+                    "correspondiente.",
+                )
             participant = await self._get_worksite_contractor_assignment(
                 worksite_id,
                 payload.represented_contractor_id,
                 on_date=valid_from,
             )
-            if participant.participation_type != "PRINCIPAL":
+            if participant.participation_type != ContractorParticipationType.PRINCIPAL.value:
                 raise _unprocessable(
                     "principal_contractor_required",
-                    "La función sólo puede representar al contratista PRINCIPAL de la obra.",
+                    "La función sólo puede representar al contratista principal de la obra.",
+                )
+            person_assignment = await self._get_person_assignment_for_worksite(
+                worksite_id, payload.person_id, on_date=valid_from
+            )
+            if (
+                person_assignment is None
+                or person_assignment.contractor_id != participant.contractor_id
+            ):
+                raise _unprocessable(
+                    "represented_company_mismatch",
+                    "La persona asignada debe pertenecer a la empresa que representa.",
                 )
         assignment = WorksiteFunctionalAssignment(
             organization_id=PILOT_ORGANIZATION_ID,
@@ -1212,18 +1792,23 @@ class PilotService:
         if require_scope:
             today = _today_in_argentina()
             statement = statement.where(
-                exists(
-                    select(WorksiteFunctionalAssignment.id).where(
-                        WorksiteFunctionalAssignment.organization_id == Worksite.organization_id,
-                        WorksiteFunctionalAssignment.worksite_id == Worksite.id,
-                        WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
-                        self._allowed_assignment_scope(),
-                        WorksiteFunctionalAssignment.valid_from <= today,
-                        or_(
-                            WorksiteFunctionalAssignment.valid_to.is_(None),
-                            WorksiteFunctionalAssignment.valid_to > today,
-                        ),
-                    )
+                or_(
+                    Worksite.created_by_actor_id == self.context.actor.id,
+                    literal(self.context.actor.role is PilotRole.CONTRATISTA),
+                    exists(
+                        select(WorksiteFunctionalAssignment.id).where(
+                            WorksiteFunctionalAssignment.organization_id
+                            == Worksite.organization_id,
+                            WorksiteFunctionalAssignment.worksite_id == Worksite.id,
+                            WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
+                            self._allowed_assignment_scope(),
+                            WorksiteFunctionalAssignment.valid_from <= today,
+                            or_(
+                                WorksiteFunctionalAssignment.valid_to.is_(None),
+                                WorksiteFunctionalAssignment.valid_to > today,
+                            ),
+                        )
+                    ),
                 )
             )
         if for_update:
@@ -1231,6 +1816,17 @@ class PilotService:
         worksite = await self.session.scalar(statement)
         if worksite is None:
             raise _not_found()
+        return worksite
+
+    async def _require_read_access(self, worksite_id: UUID) -> Worksite:
+        """Allow explicit assignments, setup ownership, or the org read-only view."""
+
+        worksite = await self._get_worksite(worksite_id, require_scope=True)
+        if self.context.actor.role is PilotRole.CONTRATISTA:
+            return worksite
+        if worksite.created_by_actor_id == self.context.actor.id:
+            return worksite
+        await self._require_current_function(worksite_id, _ALL_FUNCTIONS)
         return worksite
 
     async def _get_active_worksite(
@@ -1382,6 +1978,61 @@ class PilotService:
                 ),
             )
         return cast(Person | None, await self.session.scalar(statement.limit(1)))
+
+    async def _get_person_assignment_for_worksite(
+        self,
+        worksite_id: UUID,
+        person_id: UUID,
+        *,
+        on_date: date | None = None,
+    ) -> PersonAssignment | None:
+        statement = select(PersonAssignment).where(
+            PersonAssignment.organization_id == PILOT_ORGANIZATION_ID,
+            PersonAssignment.worksite_id == worksite_id,
+            PersonAssignment.person_id == person_id,
+        )
+        if on_date is not None:
+            statement = statement.where(
+                PersonAssignment.started_on <= on_date,
+                or_(
+                    PersonAssignment.ended_on.is_(None),
+                    PersonAssignment.ended_on > on_date,
+                ),
+            )
+        return cast(PersonAssignment | None, await self.session.scalar(statement.limit(1)))
+
+    async def _document_subject_contractor_id(
+        self, worksite_id: UUID, subject_kind: SubjectKind, subject_id: UUID
+    ) -> UUID | None:
+        if subject_kind is SubjectKind.CONTRACTOR:
+            return subject_id
+        if subject_kind is SubjectKind.PERSON:
+            assignment = await self._get_person_assignment_for_worksite(worksite_id, subject_id)
+            return assignment.contractor_id if assignment else None
+        if subject_kind is SubjectKind.MACHINE:
+            machine = await self.session.scalar(
+                select(Machine)
+                .join(
+                    MachineWorksiteAssignment,
+                    and_(
+                        MachineWorksiteAssignment.organization_id == Machine.organization_id,
+                        MachineWorksiteAssignment.machine_id == Machine.id,
+                        MachineWorksiteAssignment.worksite_id == worksite_id,
+                    ),
+                )
+                .where(
+                    Machine.organization_id == PILOT_ORGANIZATION_ID,
+                    Machine.id == subject_id,
+                )
+                .limit(1)
+            )
+            return machine.owner_contractor_id if machine else None
+        return None
+
+    async def _subject_contractor_id(
+        self, worksite_id: UUID, subject_kind: SubjectKind, subject_id: UUID
+    ) -> UUID | None:
+        return await self._document_subject_contractor_id(worksite_id, subject_kind, subject_id)
 
     async def _get_severity(self, severity_code: str | None) -> SeverityCatalogVersion:
         if severity_code is None:
@@ -1704,7 +2355,20 @@ class PilotService:
                 .order_by(Person.display_name, PersonAssignment.started_on)
             )
         ).all()
-        return [self._person_view(person, assignment) for person, assignment in rows]
+        result: list[PersonView] = []
+        for person, assignment in rows:
+            verification = await self.session.scalar(
+                select(PersonVerification)
+                .where(
+                    PersonVerification.organization_id == PILOT_ORGANIZATION_ID,
+                    PersonVerification.worksite_id == worksite_id,
+                    PersonVerification.person_id == person.id,
+                )
+                .order_by(PersonVerification.verified_at.desc(), PersonVerification.id.desc())
+                .limit(1)
+            )
+            result.append(self._person_view(person, assignment, verification))
+        return result
 
     async def _machines_for_worksite(self, worksite_id: UUID) -> list[MachineView]:
         rows = (
@@ -1729,6 +2393,12 @@ class PilotService:
             {machine.id for machine, _assignment in rows},
             worksite_id,
         )
+        inspection_ids = {
+            inspection.id
+            for inspections in inspections_by_machine.values()
+            for inspection in inspections
+        }
+        validations_by_inspection = await self._machine_validations_for_inspections(inspection_ids)
         result: list[MachineView] = []
         for machine, assignment in rows:
             inspections = inspections_by_machine.get(machine.id, [])
@@ -1739,8 +2409,31 @@ class PilotService:
                         assignment,
                         inspections[0],
                         inspections=inspections,
+                        validations_by_inspection=validations_by_inspection,
                     )
                 )
+        return result
+
+    async def _machine_validations_for_inspections(
+        self, inspection_ids: set[UUID]
+    ) -> dict[UUID, list[MachineInspectionValidation]]:
+        if not inspection_ids:
+            return {}
+        validations = await self.session.scalars(
+            select(MachineInspectionValidation)
+            .where(
+                MachineInspectionValidation.organization_id == PILOT_ORGANIZATION_ID,
+                MachineInspectionValidation.inspection_id.in_(inspection_ids),
+            )
+            .order_by(
+                MachineInspectionValidation.inspection_id,
+                MachineInspectionValidation.validated_at,
+                MachineInspectionValidation.id,
+            )
+        )
+        result: dict[UUID, list[MachineInspectionValidation]] = {}
+        for validation in validations:
+            result.setdefault(validation.inspection_id, []).append(validation)
         return result
 
     async def _machine_inspections_for_worksite(
@@ -1777,7 +2470,7 @@ class PilotService:
             )
             .order_by(WorksiteStage.started_on, WorksiteStage.created_at, WorksiteStage.id)
         )
-        return [self._worksite_stage_view(stage) for stage in stages]
+        return [await self._worksite_stage_view_with_history(stage) for stage in stages]
 
     async def _documents_for_worksite(self, worksite: Worksite) -> list[DocumentView]:
         result: list[DocumentView] = []
@@ -1812,8 +2505,16 @@ class PilotService:
         versions_by_document = await self._document_versions_for_documents(
             {document.id for document in result}
         )
+        reviews_by_document = await self._document_reviews_for_documents(
+            {document.id for document in result}
+        )
         result = [
-            document.model_copy(update={"versions": versions_by_document.get(document.id, [])})
+            document.model_copy(
+                update={
+                    "versions": versions_by_document.get(document.id, []),
+                    "reviews": reviews_by_document.get(document.id, []),
+                }
+            )
             for document in result
         ]
         return sorted(result, key=lambda item: (item.title, str(item.id)))
@@ -1838,6 +2539,28 @@ class PilotService:
         result: dict[UUID, list[DocumentVersionView]] = {}
         for version in versions:
             result.setdefault(version.document_id, []).append(self._document_version_view(version))
+        return result
+
+    async def _document_reviews_for_documents(
+        self, document_ids: set[UUID]
+    ) -> dict[UUID, list[object]]:
+        if not document_ids:
+            return {}
+        reviews = await self.session.scalars(
+            select(DocumentReview)
+            .where(
+                DocumentReview.organization_id == PILOT_ORGANIZATION_ID,
+                DocumentReview.document_id.in_(document_ids),
+            )
+            .order_by(
+                DocumentReview.document_id,
+                DocumentReview.reviewed_at.desc(),
+                DocumentReview.id.desc(),
+            )
+        )
+        result: dict[UUID, list[object]] = {}
+        for review in reviews:
+            result.setdefault(review.document_id, []).append(self._document_review_view(review))
         return result
 
     async def _contractor_documents_for_worksite(self, worksite_id: UUID) -> list[DocumentView]:
@@ -2061,10 +2784,13 @@ class PilotService:
                 FindingControl.finding_id == finding.id,
             )
         )
-        if link is None:
-            raise _conflict(
-                "finding_without_control",
-                "El desvío no conserva su vínculo con el control de origen.",
+        affected_contractor_name = None
+        if finding.affected_contractor_id is not None:
+            affected_contractor_name = await self.session.scalar(
+                select(Contractor.legal_name).where(
+                    Contractor.organization_id == PILOT_ORGANIZATION_ID,
+                    Contractor.id == finding.affected_contractor_id,
+                )
             )
         corrections = await self.session.scalars(
             select(Correction)
@@ -2086,7 +2812,7 @@ class PilotService:
             {
                 "id": finding.id,
                 "audit_id": finding.audit_id,
-                "audit_control_id": link.audit_control_id,
+                "audit_control_id": link.audit_control_id if link else None,
                 "title": finding.title,
                 "description": finding.description,
                 "severity_code": finding.severity_code,
@@ -2095,9 +2821,19 @@ class PilotService:
                 "overdue": finding.status != "CERRADO" and finding.due_at < _utc_now(),
                 "closed_at": finding.closed_at,
                 "created_by": finding.created_by_actor_id,
+                "created_at": finding.created_at,
+                "affected_contractor_id": finding.affected_contractor_id,
+                "affected_contractor_name": affected_contractor_name,
                 "corrections": [self._correction_view(row) for row in corrections],
                 "verifications": [self._verification_view(row) for row in verifications],
                 "events": await self._events_for_finding(finding.id),
+                "source_label": (
+                    "Control de auditoría"
+                    if link is not None
+                    else "Persona no registrada en obra"
+                    if finding.title == "Persona no registrada en obra"
+                    else "Hallazgo manual"
+                ),
             }
         )
 
@@ -2134,6 +2870,9 @@ class PilotService:
                 "code": worksite.code,
                 "name": worksite.name,
                 "jurisdiction": worksite.jurisdiction,
+                "country": worksite.country,
+                "province": worksite.province,
+                "municipality": worksite.municipality,
                 "status": worksite.status,
                 "version": worksite.version,
                 "created_at": worksite.created_at,
@@ -2155,6 +2894,36 @@ class PilotService:
                 "notes": stage.notes,
                 "created_at": stage.created_at,
                 "updated_at": stage.updated_at,
+                "status": getattr(stage, "status", None) or "ACTIVA",
+            }
+        )
+
+    async def _worksite_stage_view_with_history(
+        self, stage: WorksiteStage
+    ) -> WorksiteStageView:
+        events = await self.session.scalars(
+            select(WorksiteStageEvent)
+            .where(
+                WorksiteStageEvent.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteStageEvent.stage_id == stage.id,
+            )
+            .order_by(WorksiteStageEvent.created_at, WorksiteStageEvent.id)
+        )
+        view = self._worksite_stage_view(stage)
+        return view.model_copy(
+            update={
+                "history": [
+                    WorksiteStageEventView.model_validate(
+                        {
+                            "id": event.id,
+                            "event_type": event.event_type,
+                            "actor_id": event.actor_id,
+                            "detail": event.detail,
+                            "created_at": event.created_at,
+                        }
+                    )
+                    for event in events
+                ]
             }
         )
 
@@ -2179,7 +2948,11 @@ class PilotService:
         )
 
     @staticmethod
-    def _person_view(person: Person, assignment: PersonAssignment) -> PersonView:
+    def _person_view(
+        person: Person,
+        assignment: PersonAssignment,
+        verification: PersonVerification | None = None,
+    ) -> PersonView:
         return PersonView.model_validate(
             {
                 "id": person.id,
@@ -2190,6 +2963,14 @@ class PilotService:
                 "profession_code": person.profession_code or "OTRA",
                 "started_on": assignment.started_on,
                 "ended_on": assignment.ended_on,
+                "habilitation_status": verification.status
+                if verification
+                else "PENDIENTE_VERIFICACION",
+                "habilitation_verified_by": verification.verified_by_actor_id
+                if verification
+                else None,
+                "habilitation_verified_at": verification.verified_at if verification else None,
+                "habilitation_observation": verification.observation if verification else None,
             }
         )
 
@@ -2218,6 +2999,7 @@ class PilotService:
         subject_id: UUID,
         subject_name: str,
         versions: list[DocumentVersionView] | None = None,
+        reviews: list[object] | None = None,
     ) -> DocumentView:
         return DocumentView.model_validate(
             {
@@ -2239,8 +3021,22 @@ class PilotService:
                 "notes": document.notes,
                 "created_at": document.created_at,
                 "versions": versions or [],
+                "uploaded_by": document.uploaded_by_actor_id,
+                "uploaded_at": document.uploaded_at,
+                "reviews": reviews or [],
             }
         )
+
+    @staticmethod
+    def _document_review_view(review: DocumentReview) -> dict[str, object]:
+        return {
+            "id": review.id,
+            "reviewer": review.reviewer_actor_id,
+            "reviewer_function": review.reviewer_function,
+            "reviewed_at": review.reviewed_at,
+            "result": review.result,
+            "foundation": review.foundation,
+        }
 
     @staticmethod
     def _machine_view(
@@ -2249,6 +3045,7 @@ class PilotService:
         inspection: MachineInspection,
         *,
         inspections: list[MachineInspection] | None = None,
+        validations_by_inspection: dict[UUID, list[MachineInspectionValidation]] | None = None,
     ) -> MachineView:
         return MachineView.model_validate(
             {
@@ -2264,14 +3061,25 @@ class PilotService:
                 "started_on": assignment.started_on,
                 "ended_on": assignment.ended_on,
                 "inspections": [
-                    PilotService._machine_inspection_view(item)
+                    PilotService._machine_inspection_view(
+                        item,
+                        (validations_by_inspection or {}).get(item.id, []),
+                    )
                     for item in (inspections or [inspection])
                 ],
+                "machine_type": machine.machine_type,
+                "brand": machine.brand,
+                "model": machine.model,
+                "license_plate": machine.license_plate,
+                "operator_person_id": machine.operator_person_id,
             }
         )
 
     @staticmethod
-    def _machine_inspection_view(inspection: MachineInspection) -> MachineInspectionView:
+    def _machine_inspection_view(
+        inspection: MachineInspection,
+        validations: list[MachineInspectionValidation] | None = None,
+    ) -> MachineInspectionView:
         return MachineInspectionView.model_validate(
             {
                 "id": inspection.id,
@@ -2279,6 +3087,19 @@ class PilotService:
                 "reason": inspection.reason,
                 "actor_id": inspection.actor_id,
                 "inspected_at": inspection.inspected_at,
+                "checklist": inspection.checklist or {},
+                "evidence_note": inspection.evidence_note,
+                "inspector_function": inspection.inspector_function,
+                "validations": [
+                    {
+                        "id": validation.id,
+                        "validated_by": validation.validated_by_actor_id,
+                        "validator_function": validation.validator_function,
+                        "notes": validation.notes,
+                        "validated_at": validation.validated_at,
+                    }
+                    for validation in validations or []
+                ],
             }
         )
 

@@ -19,6 +19,7 @@ from hys_api.modules.pilot.schemas import (
     CorrectionCreate,
     DocumentCreate,
     DocumentDisplayStatus,
+    DocumentReviewCreate,
     DocumentVersionCreate,
     MachineCreate,
     MachineInspectionCreate,
@@ -325,7 +326,7 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
         (DEMO_SECONDARY_CONTRACTOR_ID, "CONTRACTOR", DEMO_PRINCIPAL_CONTRACTOR_ID),
         (
             DEMO_SECONDARY_SUBCONTRACTOR_ID,
-            "SUBCONTRACTOR",
+                "CONTRACTOR",
             DEMO_SECONDARY_CONTRACTOR_ID,
         ),
     ]
@@ -823,13 +824,15 @@ async def test_document_versions_are_initial_sequenced_append_only_and_scoped(
         assert second.version == 2
         assert second.title == "Seguro renovado"
         assert second.expires_on == date(2026, 12, 31)
+        # A newly uploaded version remains pending until an independent review
+        # records its result; validity dates do not bypass that gate.
         assert (
             derive_document_status(
                 second.review_status,
                 second.expires_on,
                 today=date(2026, 9, 1),
             )
-            is DocumentDisplayStatus.VIGENTE
+            is DocumentDisplayStatus.PENDIENTE
         )
         assert (
             derive_document_status(
@@ -837,7 +840,7 @@ async def test_document_versions_are_initial_sequenced_append_only_and_scoped(
                 first.expires_on,
                 today=date(2026, 9, 1),
             )
-            is DocumentDisplayStatus.POR_VENCER
+            is DocumentDisplayStatus.PENDIENTE
         )
         assert [(row[0], row[1]) for row in versions] == [
             (1, "Seguro inicial"),
@@ -970,7 +973,88 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                 )
             ),
         )
+        principal = await run_as(
+            "tecnico",
+            lambda service: service.create_contractor(
+                worksite.id,
+                ContractorCreate(
+                    legal_name="Principal de recorrido",
+                    trade="Construcción sintética",
+                ),
+            ),
+        )
+        auditor_person = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Auditor delegado de recorrido",
+                    contractor_id=principal.id,
+                    role_label="Auditor delegado",
+                    profession_code="TECNICO_HYS",
+                ),
+            ),
+        )
         await run_as(
+            "tecnico",
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["auditor"].id,
+                    person_id=auditor_person.id,
+                    function_code="AUDITOR_DELEGADO_PROYECTO",
+                ),
+            ),
+        )
+        technician_person = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Técnico de recorrido",
+                    contractor_id=principal.id,
+                    role_label="Técnico H&S",
+                    profession_code="TECNICO_HYS",
+                ),
+            ),
+        )
+        await run_as(
+            "tecnico",
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["tecnico"].id,
+                    person_id=technician_person.id,
+                    function_code="TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+                    represented_contractor_id=principal.id,
+                ),
+            ),
+        )
+        responsible_person = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Responsable de recorrido",
+                    contractor_id=principal.id,
+                    role_label="Licenciado H&S",
+                    profession_code="LICENCIADO_HYS",
+                ),
+            ),
+        )
+        await run_as(
+            "tecnico",
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["responsable-suplente"].id,
+                    person_id=responsible_person.id,
+                    function_code="RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+                    represented_contractor_id=principal.id,
+                ),
+            ),
+        )
+        document = await run_as(
             "tecnico",
             lambda service: service.create_document(
                 worksite.id,
@@ -982,6 +1066,17 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                     review_status="APROBADO",
                     valid_from=date(2026, 9, 1),
                     expires_on=date(2099, 12, 31),
+                ),
+            ),
+        )
+        await run_as(
+            "auditor",
+            lambda service: service.review_document(
+                worksite.id,
+                document.id,
+                DocumentReviewCreate(
+                    result="APROBADO",
+                    foundation="Revisión documental sintética completa.",
                 ),
             ),
         )
@@ -1004,9 +1099,10 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                 audit.id,
                 AuditControlCreate(
                     catalog_code="SYN-EPP-001",
-                    result=ControlResult.NO_CUMPLE,
-                    severity_code="MEDIA",
-                    finding_description="Completar la entrega sintética de EPP.",
+                        result=ControlResult.NO_CUMPLE,
+                        severity_code="MEDIA",
+                        finding_description="Completar la entrega sintética de EPP.",
+                        affected_contractor_id=principal.id,
                 ),
             ),
         )
@@ -1064,5 +1160,5 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
     assert detail.metrics.controls.excluded.no_aplica == 1
     assert pdf.startswith(b"%PDF-1.4")
     assert b"SYN-COMPLETE-JOURNEY" in pdf
-    assert b"CERRADO" in pdf
+    assert b"Cerrado" in pdf
     assert pdf.endswith(b"%%EOF\n")

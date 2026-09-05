@@ -24,6 +24,9 @@ import type {
   PilotCreateMachineInspectionData,
   PilotCreateMachineInspectionErrors,
   PilotCreateMachineInspectionResponses,
+  PilotCreateUnregisteredPersonFindingData,
+  PilotCreateUnregisteredPersonFindingErrors,
+  PilotCreateUnregisteredPersonFindingResponses,
   PilotCreateWorksiteContractorData,
   PilotCreateWorksiteContractorErrors,
   PilotCreateWorksiteContractorResponses,
@@ -48,12 +51,18 @@ import type {
   PilotCreateWorksiteStageData,
   PilotCreateWorksiteStageErrors,
   PilotCreateWorksiteStageResponses,
+  PilotDownloadAuditReportData,
+  PilotDownloadAuditReportErrors,
+  PilotDownloadAuditReportResponses,
   PilotDownloadWorksiteReportData,
   PilotDownloadWorksiteReportErrors,
   PilotDownloadWorksiteReportResponses,
   PilotFinalizeAuditData,
   PilotFinalizeAuditErrors,
   PilotFinalizeAuditResponses,
+  PilotGetAuditData,
+  PilotGetAuditErrors,
+  PilotGetAuditResponses,
   PilotGetFindingTimelineData,
   PilotGetFindingTimelineErrors,
   PilotGetFindingTimelineResponses,
@@ -66,15 +75,27 @@ import type {
   PilotListWorksitesData,
   PilotListWorksitesErrors,
   PilotListWorksitesResponses,
+  PilotReviewWorksiteDocumentData,
+  PilotReviewWorksiteDocumentErrors,
+  PilotReviewWorksiteDocumentResponses,
   PilotStartWorksiteAuditData,
   PilotStartWorksiteAuditErrors,
   PilotStartWorksiteAuditResponses,
   PilotSubmitFindingVerificationData,
   PilotSubmitFindingVerificationErrors,
   PilotSubmitFindingVerificationResponses,
+  PilotUpdateWorksiteStageData,
+  PilotUpdateWorksiteStageErrors,
+  PilotUpdateWorksiteStageResponses,
+  PilotValidateMachineInspectionData,
+  PilotValidateMachineInspectionErrors,
+  PilotValidateMachineInspectionResponses,
   PilotVerifyFindingData,
   PilotVerifyFindingErrors,
   PilotVerifyFindingResponses,
+  PilotVerifyPersonHabilitationData,
+  PilotVerifyPersonHabilitationErrors,
+  PilotVerifyPersonHabilitationResponses,
 } from "./types.gen";
 
 export type Options<
@@ -94,6 +115,18 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Get Audit
+ */
+export const pilotGetAudit = <ThrowOnError extends boolean = false>(
+  options: Options<PilotGetAuditData, ThrowOnError>,
+): RequestResult<PilotGetAuditResponses, PilotGetAuditErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    PilotGetAuditResponses,
+    PilotGetAuditErrors,
+    ThrowOnError
+  >({ url: "/api/v1/audits/{audit_id}", ...options });
 
 /**
  * Create Audit Control
@@ -133,6 +166,47 @@ export const pilotFinalizeAudit = <ThrowOnError extends boolean = false>(
     PilotFinalizeAuditErrors,
     ThrowOnError
   >({ url: "/api/v1/audits/{audit_id}/finalize", ...options });
+
+/**
+ * Download Audit Report
+ */
+export const pilotDownloadAuditReport = <ThrowOnError extends boolean = false>(
+  options: Options<PilotDownloadAuditReportData, ThrowOnError>,
+): RequestResult<
+  PilotDownloadAuditReportResponses,
+  PilotDownloadAuditReportErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    PilotDownloadAuditReportResponses,
+    PilotDownloadAuditReportErrors,
+    ThrowOnError
+  >({ url: "/api/v1/audits/{audit_id}/report.pdf", ...options });
+
+/**
+ * Create Unregistered Person Finding
+ */
+export const pilotCreateUnregisteredPersonFinding = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotCreateUnregisteredPersonFindingData, ThrowOnError>,
+): RequestResult<
+  PilotCreateUnregisteredPersonFindingResponses,
+  PilotCreateUnregisteredPersonFindingErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotCreateUnregisteredPersonFindingResponses,
+    PilotCreateUnregisteredPersonFindingErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/audits/{audit_id}/unregistered-people",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
 
 /**
  * Create Finding Correction
@@ -369,6 +443,31 @@ export const pilotCreateWorksiteDocument = <
   });
 
 /**
+ * Review Worksite Document
+ */
+export const pilotReviewWorksiteDocument = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotReviewWorksiteDocumentData, ThrowOnError>,
+): RequestResult<
+  PilotReviewWorksiteDocumentResponses,
+  PilotReviewWorksiteDocumentErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotReviewWorksiteDocumentResponses,
+    PilotReviewWorksiteDocumentErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/documents/{document_id}/reviews",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
  * Create Worksite Document Version
  */
 export const pilotCreateWorksiteDocumentVersion = <
@@ -490,6 +589,31 @@ export const pilotCreateMachineInspection = <
   });
 
 /**
+ * Validate Machine Inspection
+ */
+export const pilotValidateMachineInspection = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotValidateMachineInspectionData, ThrowOnError>,
+): RequestResult<
+  PilotValidateMachineInspectionResponses,
+  PilotValidateMachineInspectionErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotValidateMachineInspectionResponses,
+    PilotValidateMachineInspectionErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/machines/{machine_id}/inspections/{inspection_id}/validations",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
  * Create Worksite Person
  */
 export const pilotCreateWorksitePerson = <ThrowOnError extends boolean = false>(
@@ -505,6 +629,31 @@ export const pilotCreateWorksitePerson = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: "/api/v1/worksites/{worksite_id}/people",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Verify Person Habilitation
+ */
+export const pilotVerifyPersonHabilitation = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotVerifyPersonHabilitationData, ThrowOnError>,
+): RequestResult<
+  PilotVerifyPersonHabilitationResponses,
+  PilotVerifyPersonHabilitationErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotVerifyPersonHabilitationResponses,
+    PilotVerifyPersonHabilitationErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/people/{person_id}/verifications",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -546,6 +695,29 @@ export const pilotCreateWorksiteStage = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: "/api/v1/worksites/{worksite_id}/stages",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Update Worksite Stage
+ */
+export const pilotUpdateWorksiteStage = <ThrowOnError extends boolean = false>(
+  options: Options<PilotUpdateWorksiteStageData, ThrowOnError>,
+): RequestResult<
+  PilotUpdateWorksiteStageResponses,
+  PilotUpdateWorksiteStageErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).put<
+    PilotUpdateWorksiteStageResponses,
+    PilotUpdateWorksiteStageErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/stages/{stage_id}",
     ...options,
     headers: {
       "Content-Type": "application/json",

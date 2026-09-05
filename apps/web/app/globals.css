@@ -829,6 +829,14 @@ summary:focus-visible {
   background: var(--navy-900);
 }
 
+.button--quiet {
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--blue-600);
+  background: transparent;
+  border-color: var(--line);
+}
+
 .button:hover:not(:disabled) {
   filter: brightness(1.07);
   transform: translateY(-1px);
@@ -842,6 +850,68 @@ summary:focus-visible {
 
 .form-action {
   align-self: end;
+}
+
+.onboarding-card {
+  margin: 20px 0;
+  background: linear-gradient(135deg, #effaf7, #ffffff);
+  border-color: #b8e7d8;
+}
+
+.onboarding-card h3 {
+  margin: 5px 0 8px;
+}
+
+.onboarding-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-left: 24px;
+}
+
+.onboarding-list button {
+  padding: 0;
+  color: var(--blue-600);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.inline-history ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--ink-500);
+  font-size: 0.75rem;
+}
+
+.audit-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.audit-history-list button {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  color: var(--ink-900);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.audit-history-list button.is-active {
+  border-color: var(--teal-700);
+  box-shadow: inset 3px 0 var(--teal-700);
+}
+
+.audit-history-list span,
+.audit-history-list small {
+  color: var(--ink-500);
 }
 
 .permission-note,

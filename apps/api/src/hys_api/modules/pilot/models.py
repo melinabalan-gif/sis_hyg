@@ -16,6 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from hys_api.db.base import Base
@@ -92,7 +93,7 @@ class WorksiteContractor(Base):
         ),
         CheckConstraint("ended_on IS NULL OR ended_on > started_on", name="valid_date_range"),
         CheckConstraint(
-            "participation_type IN ('PRINCIPAL', 'CONTRACTOR', 'SUBCONTRACTOR')",
+            "participation_type IN ('PRINCIPAL', 'CONTRACTOR')",
             name="valid_participation_type",
         ),
         CheckConstraint(
@@ -155,6 +156,10 @@ class WorksiteStage(Base):
         CheckConstraint("btrim(code) <> ''", name="code_not_blank"),
         CheckConstraint("btrim(name) <> ''", name="name_not_blank"),
         CheckConstraint(
+            "status IN ('PLANIFICADA', 'ACTIVA', 'CERRADA')",
+            name="valid_status",
+        ),
+        CheckConstraint(
             "sector IS NULL OR btrim(sector) <> ''",
             name="sector_not_blank",
         ),
@@ -180,11 +185,48 @@ class WorksiteStage(Base):
     ended_on: Mapped[date | None] = mapped_column(Date)
     sector: Mapped[str | None] = mapped_column(String(120))
     notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default=text("'ACTIVA'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class WorksiteStageEvent(Base):
+    """Append-only audit trail for temporal stage changes."""
+
+    __tablename__ = "worksite_stage_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "id", name="uq_worksite_stage_events_organization_id_id"
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "stage_id"],
+            ["worksite_stages.organization_id", "worksite_stages.id"],
+            name="fk_worksite_stage_events_org_stage_worksite_stages",
+        ),
+        CheckConstraint("btrim(event_type) <> ''", name="event_type_not_blank"),
+        CheckConstraint("btrim(detail) <> ''", name="detail_not_blank"),
+        Index(
+            "ix_worksite_stage_events_org_stage_created",
+            "organization_id",
+            "stage_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    organization_id: Mapped[UUID] = mapped_column(nullable=False)
+    stage_id: Mapped[UUID] = mapped_column(nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
 
@@ -266,6 +308,51 @@ class PersonAssignment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class PersonVerification(Base):
+    """Append-only habilitation decision for a person in one worksite."""
+
+    __tablename__ = "person_verifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "id", name="uq_person_verifications_organization_id_id"
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "person_id"],
+            ["people.organization_id", "people.id"],
+            name="fk_person_verifications_org_person_people",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "worksite_id"],
+            ["worksites.organization_id", "worksites.id"],
+            name="fk_person_verifications_org_worksite_worksites",
+        ),
+        CheckConstraint(
+            "status IN ('PENDIENTE_VERIFICACION', 'HABILITADO', "
+            "'DOCUMENTACION_INCOMPLETA', 'NO_HABILITADO')",
+            name="valid_status",
+        ),
+        CheckConstraint("btrim(function_label) <> ''", name="function_label_not_blank"),
+        Index(
+            "ix_person_verifications_org_worksite_person",
+            "organization_id",
+            "worksite_id",
+            "person_id",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    organization_id: Mapped[UUID] = mapped_column(nullable=False)
+    worksite_id: Mapped[UUID] = mapped_column(nullable=False)
+    person_id: Mapped[UUID] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    function_label: Mapped[str] = mapped_column(String(160), nullable=False)
+    verified_by_actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    observation: Mapped[str | None] = mapped_column(Text)
 
 
 class WorksiteFunctionalAssignment(Base):
@@ -361,6 +448,16 @@ class Machine(Base):
             ["organizations.id"],
             name="fk_machines_organization_id_organizations",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "owner_contractor_id"],
+            ["contractors.organization_id", "contractors.id"],
+            name="fk_machines_org_owner_contractor_contractors",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "operator_person_id"],
+            ["people.organization_id", "people.id"],
+            name="fk_machines_org_operator_person_people",
+        ),
         CheckConstraint(
             "status IN ('OPERATIVA', 'CON_OBSERVACIONES', 'FUERA_DE_SERVICIO')",
             name="valid_status",
@@ -374,6 +471,12 @@ class Machine(Base):
     organization_id: Mapped[UUID] = mapped_column(nullable=False)
     internal_code: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    machine_type: Mapped[str | None] = mapped_column(String(120))
+    brand: Mapped[str | None] = mapped_column(String(120))
+    model: Mapped[str | None] = mapped_column(String(120))
+    license_plate: Mapped[str | None] = mapped_column(String(32))
+    owner_contractor_id: Mapped[UUID | None] = mapped_column()
+    operator_person_id: Mapped[UUID | None] = mapped_column()
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default=text("'OPERATIVA'")
     )
@@ -474,9 +577,39 @@ class MachineInspection(Base):
     worksite_id: Mapped[UUID] = mapped_column(nullable=False)
     resulting_status: Mapped[str] = mapped_column(String(32), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+    checklist: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
+    evidence_note: Mapped[str | None] = mapped_column(Text)
+    inspector_function: Mapped[str | None] = mapped_column(String(120))
     actor_id: Mapped[UUID] = mapped_column(nullable=False)
     inspected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class MachineInspectionValidation(Base):
+    """A later validation event, kept separate from the inspection itself."""
+
+    __tablename__ = "machine_inspection_validations"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "id", name="uq_machine_inspection_validations_organization_id_id"
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "inspection_id"],
+            ["machine_inspections.organization_id", "machine_inspections.id"],
+            name="fk_machine_inspection_validations_org_inspection",
+        ),
+        CheckConstraint("btrim(notes) <> ''", name="notes_not_blank"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    organization_id: Mapped[UUID] = mapped_column(nullable=False)
+    inspection_id: Mapped[UUID] = mapped_column(nullable=False)
+    validated_by_actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    validator_function: Mapped[str] = mapped_column(String(120), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    validated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
@@ -490,7 +623,7 @@ class Document(Base):
             name="fk_documents_organization_id_organizations",
         ),
         CheckConstraint(
-            "review_status IN ('PENDIENTE', 'APROBADO', 'RECHAZADO')",
+            "review_status IN ('PENDIENTE', 'APROBADO', 'OBSERVADO', 'RECHAZADO')",
             name="valid_review_status",
         ),
         CheckConstraint(
@@ -517,6 +650,8 @@ class Document(Base):
     valid_from: Mapped[date | None] = mapped_column(Date)
     expires_on: Mapped[date | None] = mapped_column(Date)
     notes: Mapped[str | None] = mapped_column(Text)
+    uploaded_by_actor_id: Mapped[UUID | None] = mapped_column()
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -549,7 +684,7 @@ class DocumentVersion(Base):
             name="fk_document_versions_org_document_documents",
         ),
         CheckConstraint(
-            "review_status IN ('PENDIENTE', 'APROBADO', 'RECHAZADO')",
+            "review_status IN ('PENDIENTE', 'APROBADO', 'OBSERVADO', 'RECHAZADO')",
             name="valid_review_status",
         ),
         CheckConstraint(
@@ -581,6 +716,42 @@ class DocumentVersion(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class DocumentReview(Base):
+    """Append-only review decision, independent from upload/version creation."""
+
+    __tablename__ = "document_reviews"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_document_reviews_organization_id_id"),
+        ForeignKeyConstraint(
+            ["organization_id", "document_id"],
+            ["documents.organization_id", "documents.id"],
+            name="fk_document_reviews_org_document_documents",
+        ),
+        CheckConstraint(
+            "result IN ('APROBADO', 'OBSERVADO', 'RECHAZADO')",
+            name="valid_result",
+        ),
+        CheckConstraint("btrim(foundation) <> ''", name="foundation_not_blank"),
+        Index(
+            "ix_document_reviews_org_document_created",
+            "organization_id",
+            "document_id",
+            "reviewed_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    organization_id: Mapped[UUID] = mapped_column(nullable=False)
+    document_id: Mapped[UUID] = mapped_column(nullable=False)
+    reviewer_actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    reviewer_function: Mapped[str] = mapped_column(String(120), nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    result: Mapped[str] = mapped_column(String(32), nullable=False)
+    foundation: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class WorksiteDocument(Base):
@@ -928,6 +1099,11 @@ class Finding(Base):
             ["severity_catalog_versions.organization_id", "severity_catalog_versions.id"],
             name="fk_findings_org_severity_severity_catalog_versions",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "affected_contractor_id"],
+            ["contractors.organization_id", "contractors.id"],
+            name="fk_findings_org_affected_contractor_contractors",
+        ),
         CheckConstraint(
             "status IN ('ABIERTO', 'EN_CORRECCION', 'PENDIENTE_VERIFICACION', 'CERRADO')",
             name="valid_status",
@@ -946,6 +1122,11 @@ class Finding(Base):
         CheckConstraint("btrim(severity_label) <> ''", name="severity_label_not_blank"),
         Index("ix_findings_org_worksite_status", "organization_id", "worksite_id", "status"),
         Index("ix_findings_org_status_due_at", "organization_id", "status", "due_at"),
+        Index(
+            "ix_findings_org_affected_contractor",
+            "organization_id",
+            "affected_contractor_id",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -962,6 +1143,7 @@ class Finding(Base):
     severity_label: Mapped[str] = mapped_column(String(100), nullable=False)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    affected_contractor_id: Mapped[UUID | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -1125,19 +1307,24 @@ __all__ = [
     "ControlCatalogVersion",
     "Correction",
     "Document",
+    "DocumentReview",
     "Finding",
     "FindingControl",
     "FindingEvent",
     "Machine",
     "MachineDocument",
     "MachineInspection",
+    "MachineInspectionValidation",
     "MachineWorksiteAssignment",
     "Person",
     "PersonAssignment",
     "PersonDocument",
+    "PersonVerification",
     "SeverityCatalogVersion",
     "Verification",
     "WorksiteContractor",
     "WorksiteDocument",
     "WorksiteFunctionalAssignment",
+    "WorksiteStage",
+    "WorksiteStageEvent",
 ]

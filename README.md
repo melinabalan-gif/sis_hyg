@@ -24,15 +24,19 @@ Reglas verificables de este corte:
 - `NO_APLICA` y `NO_VERIFICADO` requieren motivo.
 - La vigencia documental se deriva en hora local de Buenos Aires, con una
   ventana de aviso de 30 días.
+- La carga documental siempre deja el registro en `PENDIENTE`; la revisión
+  posterior admite `APROBADO`, `OBSERVADO` o `RECHAZADO` con fundamento.
 - El estado inicial de una maquinaria queda respaldado por una inspección y un
-  motivo.
+  motivo; el checklist y las validaciones posteriores quedan en su historial.
+- Las etapas pueden superponerse y cada modificación conserva actor, fecha y
+  detalle del cambio.
 - Una auditoría finalizada no acepta nuevos controles.
 - El creador del desvío y el autor de la última corrección no pueden verificarlo
   ni cerrarlo.
 
 La auditoría llega a `FINALIZADA`; el cierre operativo de este piloto es el
-desvío `CERRADO`. El botón de PDF genera una respuesta síncrona desde el estado
-persistido de la obra.
+desvío `CERRADO`. Los reportes ejecutivo y de auditoría se generan
+síncronamente desde el estado persistido de la obra.
 
 ## Límites del piloto
 

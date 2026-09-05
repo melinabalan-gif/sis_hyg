@@ -12,11 +12,13 @@ import {
 import {
   PILOT_ACTORS,
   actorRole,
+  downloadAuditReport,
   formatDate,
   formatDateTime,
   downloadWorksiteReport,
   getWorksite,
   listWorksites,
+  pilotLabel,
   type Audit,
   type DocumentSubjectKind,
   type Finding,
@@ -54,7 +56,9 @@ function StatusBadge({ value }: { value: string }) {
     .replaceAll("_", "-")
     .replaceAll(" ", "-");
   return (
-    <span className={`status-badge status-badge--${normalized}`}>{value}</span>
+    <span className={`status-badge status-badge--${normalized}`}>
+      {pilotLabel(value)}
+    </span>
   );
 }
 
@@ -93,6 +97,7 @@ function Card({
 const DOCUMENT_STATUS_LABELS = [
   ["FALTANTE", "Faltante"],
   ["PENDIENTE", "Pendiente"],
+  ["OBSERVADO", "Observado"],
   ["RECHAZADO", "Rechazado"],
   ["POR_VENCER", "Por vencer"],
   ["VENCIDO", "Vencido"],
@@ -111,6 +116,15 @@ const MACHINE_STATUS_LABELS = [
   ["CON_OBSERVACIONES", "Con observaciones"],
   ["FUERA_DE_SERVICIO", "Fuera de servicio"],
 ] as const;
+
+const CHECKLIST_LABELS: Record<string, string> = {
+  general_condition: "Estado general",
+  safety_devices: "Dispositivos de seguridad",
+};
+
+function checklistLabel(key: string): string {
+  return CHECKLIST_LABELS[key] ?? pilotLabel(key);
+}
 
 function DashboardPanel({
   eyebrow,
@@ -168,6 +182,7 @@ export function PilotWorkspace() {
   const [actor, setActor] = useState<PilotActor>("tecnico");
   const [worksites, setWorksites] = useState<WorksiteSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorksiteDetail | null>(null);
   const [step, setStep] = useState<Step>("overview");
   const [loading, setLoading] = useState(true);
@@ -179,7 +194,7 @@ export function PilotWorkspace() {
   const actorDefinition = PILOT_ACTORS.find((item) => item.value === actor);
   const canManageResources = role === "TECNICO" || role === "RESPONSABLE_HYS";
   const canManageAudit = role === "AUDITOR" || role === "RESPONSABLE_HYS";
-  const canVerify = role === "RESPONSABLE_HYS";
+  const canVerify = role === "AUDITOR" || role === "RESPONSABLE_HYS";
 
   const loadList = useCallback(async (nextActor: PilotActor) => {
     const items = await listWorksites(nextActor);
@@ -203,6 +218,7 @@ export function PilotWorkspace() {
           await loadDetail(selectedId, actor);
         } else {
           setSelectedId(null);
+          setSelectedAuditId(null);
           setDetail(null);
         }
       } catch (reason) {
@@ -229,6 +245,7 @@ export function PilotWorkspace() {
 
   async function selectWorksite(id: string) {
     setSelectedId(id);
+    setSelectedAuditId(null);
     setLoading(true);
     setError(null);
     setNotice(null);
@@ -281,6 +298,9 @@ export function PilotWorkspace() {
       const created = await postPilot<WorksiteSummary>("/worksites", actor, {
         code: fieldValue(form, "code"),
         name: fieldValue(form, "name"),
+        country: fieldValue(form, "country"),
+        province: fieldValue(form, "province"),
+        municipality: fieldValue(form, "municipality"),
         jurisdiction: fieldValue(form, "jurisdiction"),
       });
       await loadList(actor);
@@ -325,6 +345,30 @@ export function PilotWorkspace() {
     }
   }
 
+  async function downloadAudit(auditId: string) {
+    setBusy("audit-report");
+    setError(null);
+    setNotice(null);
+    try {
+      const blob = await downloadAuditReport(auditId, actor);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `auditoria-${auditId.slice(0, 8)}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice("Informe de auditoría generado desde el historial persistido.");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "No se pudo generar el informe de auditoría.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function submitForm(
     event: FormEvent<HTMLFormElement>,
     key: string,
@@ -340,11 +384,16 @@ export function PilotWorkspace() {
 
   const activeAudit = useMemo(() => {
     if (!detail?.audits.length) return null;
+    if (selectedAuditId) {
+      return (
+        detail.audits.find((audit) => audit.id === selectedAuditId) ?? null
+      );
+    }
     return (
       detail.audits.find((audit) => audit.status === "EN_CURSO") ??
       detail.audits.at(-1)!
     );
-  }, [detail]);
+  }, [detail, selectedAuditId]);
 
   const totalRecords = detail
     ? detail.contractors.length +
@@ -385,51 +434,24 @@ export function PilotWorkspace() {
             >
               <span>{worksite.code}</span>
               <strong>{worksite.name}</strong>
-              <small>{worksite.status}</small>
+              <small>{pilotLabel(worksite.status)}</small>
             </button>
           ))}
         </div>
 
-        <details className="create-panel" open={worksites.length === 0}>
-          <summary>Nueva obra</summary>
-          <form onSubmit={(event) => void createWorksite(event)}>
-            <Field label="Código">
-              <input
-                name="code"
-                placeholder="OBR-001"
-                required
-                maxLength={64}
-              />
-            </Field>
-            <Field label="Nombre">
-              <input
-                name="name"
-                placeholder="Ampliación planta piloto"
-                required
-                maxLength={200}
-              />
-            </Field>
-            <Field label="Jurisdicción">
-              <input
-                name="jurisdiction"
-                placeholder="Provincia / municipio"
-                required
-                maxLength={200}
-              />
-            </Field>
-            <button
-              className="button button--primary"
-              disabled={busy !== null || !canManageResources}
-            >
-              {busy === "worksite" ? "Creando…" : "Crear y abrir"}
-            </button>
-            {!canManageResources ? (
-              <small className="permission-note">
-                Usá Técnico o Responsable H&amp;S para crear obras.
-              </small>
-            ) : null}
-          </form>
-        </details>
+        <button
+          className="button button--primary"
+          onClick={() => {
+            setSelectedId(null);
+            setSelectedAuditId(null);
+            setDetail(null);
+            setError(null);
+            setNotice(null);
+          }}
+          type="button"
+        >
+          Nueva obra
+        </button>
       </aside>
 
       <section className="workspace" aria-label="Espacio de trabajo de la obra">
@@ -471,7 +493,21 @@ export function PilotWorkspace() {
                   ? "Licenciado H&S"
                   : "Técnico H&S"}
             </span>
-            <span>Alcance: obra seleccionada</span>
+            <span>
+              Empresa representada:{" "}
+              {actorDefinition?.role === "TECNICO" ||
+              actorDefinition?.value === "licenciado-contratista-principal"
+                ? "Contratista principal"
+                : actorDefinition?.role === "CONTRATISTA"
+                  ? "Cuenta organizacional"
+                  : "Proyecto / obra"}
+            </span>
+            <span>
+              Alcance:{" "}
+              {actorDefinition?.role === "CONTRATISTA"
+                ? "lectura organizacional"
+                : "obra seleccionada"}
+            </span>
           </div>
         </header>
 
@@ -501,16 +537,95 @@ export function PilotWorkspace() {
               <li>Ejecutar el control</li>
               <li>Corregir y verificar</li>
             </ol>
+            <Card className="new-worksite-card">
+              <h2>Alta inicial</h2>
+              <p className="muted">
+                La obra comienza sin actores heredados. Después podrás
+                configurar responsables, contratistas y etapas.
+              </p>
+              <form
+                className="form-grid form-grid--wide"
+                onSubmit={(event) => void createWorksite(event)}
+              >
+                <Field label="Código">
+                  <input
+                    name="code"
+                    placeholder="OBRA-001"
+                    required
+                    maxLength={64}
+                  />
+                </Field>
+                <Field label="Nombre">
+                  <input
+                    name="name"
+                    placeholder="Ampliación planta piloto"
+                    required
+                    maxLength={200}
+                  />
+                </Field>
+                <Field label="País">
+                  <input
+                    name="country"
+                    placeholder="Argentina"
+                    required
+                    maxLength={120}
+                  />
+                </Field>
+                <Field label="Provincia">
+                  <input
+                    name="province"
+                    placeholder="Provincia sintética"
+                    required
+                    maxLength={120}
+                  />
+                </Field>
+                <Field label="Municipio">
+                  <input
+                    name="municipality"
+                    placeholder="Municipio sintético"
+                    required
+                    maxLength={120}
+                  />
+                </Field>
+                <button
+                  className="button button--primary form-action"
+                  disabled={busy !== null || !canManageResources}
+                >
+                  {busy === "worksite" ? "Creando…" : "Crear y abrir"}
+                </button>
+                {!canManageResources ? (
+                  <small className="permission-note">
+                    Usá Técnico o Responsable H&amp;S para crear obras.
+                  </small>
+                ) : null}
+              </form>
+            </Card>
           </section>
         ) : (
           <>
             <div className="worksite-titlebar">
               <div>
+                <button
+                  className="button button--quiet"
+                  onClick={() => {
+                    setSelectedId(null);
+                    setSelectedAuditId(null);
+                    setDetail(null);
+                    setStep("overview");
+                  }}
+                  type="button"
+                >
+                  ← Volver a obras
+                </button>
                 <p className="kicker">{detail.code}</p>
                 <h1>{detail.name}</h1>
               </div>
               <div className="titlebar-meta">
-                <span>Jurisdicción: {detail.jurisdiction}</span>
+                <span>
+                  Ubicación: {detail.country ?? "País no informado"} ·{" "}
+                  {detail.province ?? detail.jurisdiction} ·{" "}
+                  {detail.municipality ?? "Municipio no informado"}
+                </span>
                 <StatusBadge value={detail.status} />
                 <span>{totalRecords} registros de legajo</span>
               </div>
@@ -540,6 +655,7 @@ export function PilotWorkspace() {
               {step === "overview" ? (
                 <Overview
                   detail={detail}
+                  role={role}
                   onDownloadReport={() => void downloadReport()}
                   onStep={setStep}
                 />
@@ -563,6 +679,19 @@ export function PilotWorkspace() {
                         notes: optionalField(form, "notes"),
                       }),
                       "Etapa registrada en la línea temporal de la obra.",
+                    )
+                  }
+                  onUpdate={(event, stageId) =>
+                    void submitForm(
+                      event,
+                      `stage-update-${stageId}`,
+                      `/worksites/${detail.id}/stages/${stageId}`,
+                      (form) => ({
+                        status: fieldValue(form, "stage_status"),
+                        ended_on: optionalField(form, "stage_ended_on"),
+                        notes: optionalField(form, "stage_notes"),
+                      }),
+                      "Etapa actualizada y cambio trazado.",
                     )
                   }
                 />
@@ -615,6 +744,25 @@ export function PilotWorkspace() {
                       "Persona sintética asignada al contratista.",
                     )
                   }
+                  onVerify={
+                    canVerify
+                      ? (event, personId) =>
+                          void submitForm(
+                            event,
+                            `person-verification-${personId}`,
+                            `/worksites/${detail.id}/people/${personId}/verifications`,
+                            (form) => ({
+                              status: fieldValue(form, "status"),
+                              function_label: fieldValue(
+                                form,
+                                "function_label",
+                              ),
+                              observation: optionalField(form, "observation"),
+                            }),
+                            "Habilitación de persona registrada.",
+                          )
+                      : undefined
+                  }
                 />
               ) : null}
               {step === "documents" ? (
@@ -635,7 +783,6 @@ export function PilotWorkspace() {
                         return {
                           title: fieldValue(form, "title"),
                           document_type: fieldValue(form, "document_type"),
-                          review_status: fieldValue(form, "review_status"),
                           valid_from: optionalField(form, "valid_from"),
                           expires_on: optionalField(form, "expires_on"),
                           notes: optionalField(form, "notes"),
@@ -657,16 +804,27 @@ export function PilotWorkspace() {
                           form,
                           "version_document_type",
                         ),
-                        review_status: fieldValue(
-                          form,
-                          "version_review_status",
-                        ),
                         valid_from: optionalField(form, "version_valid_from"),
                         expires_on: optionalField(form, "version_expires_on"),
                         notes: optionalField(form, "version_notes"),
                       }),
                       "Nueva versión registrada; la vista actual fue actualizada.",
                     )
+                  }
+                  onReview={
+                    canVerify
+                      ? (event, documentId) =>
+                          void submitForm(
+                            event,
+                            `document-review-${documentId}`,
+                            `/worksites/${detail.id}/documents/${documentId}/reviews`,
+                            (form) => ({
+                              result: fieldValue(form, "review_result"),
+                              foundation: fieldValue(form, "review_foundation"),
+                            }),
+                            "Revisión documental registrada con fundamento.",
+                          )
+                      : undefined
                   }
                 />
               ) : null}
@@ -686,6 +844,10 @@ export function PilotWorkspace() {
                         status: fieldValue(form, "status"),
                         reason: fieldValue(form, "reason"),
                         contractor_id: optionalField(form, "contractor_id"),
+                        machine_type: optionalField(form, "machine_type"),
+                        brand: optionalField(form, "brand"),
+                        model: optionalField(form, "model"),
+                        license_plate: optionalField(form, "license_plate"),
                       }),
                       "Maquinaria asignada con inspección inicial trazada.",
                     )
@@ -698,9 +860,31 @@ export function PilotWorkspace() {
                       (form) => ({
                         resulting_status: fieldValue(form, "resulting_status"),
                         reason: fieldValue(form, "inspection_reason"),
+                        checklist: {
+                          general_condition: fieldValue(
+                            form,
+                            "general_condition",
+                          ),
+                          safety_devices: fieldValue(form, "safety_devices"),
+                        },
+                        evidence_note: optionalField(form, "evidence_note"),
                       }),
                       "Reinspección registrada; estado y versión actualizados.",
                     )
+                  }
+                  onValidate={
+                    canVerify
+                      ? (event, machineId, inspectionId) =>
+                          void submitForm(
+                            event,
+                            `machine-validation-${inspectionId}`,
+                            `/worksites/${detail.id}/machines/${machineId}/inspections/${inspectionId}/validations`,
+                            (form) => ({
+                              notes: fieldValue(form, "validation_notes"),
+                            }),
+                            "Validación de inspección registrada independientemente.",
+                          )
+                      : undefined
                   }
                 />
               ) : null}
@@ -709,9 +893,11 @@ export function PilotWorkspace() {
                   detail={detail}
                   actor={actor}
                   audit={activeAudit}
+                  onSelectAudit={setSelectedAuditId}
                   busy={busy}
                   canManage={canManageAudit}
-                  onStart={(assignmentId) =>
+                  onStart={(assignmentId) => {
+                    setSelectedAuditId(null);
                     void mutate(
                       "audit-start",
                       `/worksites/${detail.id}/audits`,
@@ -719,8 +905,8 @@ export function PilotWorkspace() {
                         ? { auditor_assignment_id: assignmentId }
                         : {},
                       "Auditoría iniciada. Ya podés registrar el control.",
-                    )
-                  }
+                    );
+                  }}
                   onControl={(event, catalogCode) => {
                     if (!activeAudit) return;
                     void submitForm(
@@ -736,6 +922,10 @@ export function PilotWorkspace() {
                           form,
                           "finding_description",
                         ),
+                        affected_contractor_id: optionalField(
+                          form,
+                          "affected_contractor_id",
+                        ),
                       }),
                       "Control registrado y desvío enlazado cuando corresponde.",
                     );
@@ -749,6 +939,30 @@ export function PilotWorkspace() {
                       "Auditoría finalizada. Los controles quedaron congelados.",
                     );
                   }}
+                  onDownloadReport={(auditId) => void downloadAudit(auditId)}
+                  onUnregistered={(event) => {
+                    if (!activeAudit) return;
+                    void submitForm(
+                      event,
+                      "unregistered-person-finding",
+                      `/audits/${activeAudit.id}/unregistered-people`,
+                      (form) => ({
+                        description: fieldValue(
+                          form,
+                          "unregistered_description",
+                        ),
+                        severity_code: fieldValue(
+                          form,
+                          "unregistered_severity",
+                        ),
+                        affected_contractor_id: optionalField(
+                          form,
+                          "unregistered_contractor_id",
+                        ),
+                      }),
+                      "Hallazgo de persona no registrada creado.",
+                    );
+                  }}
                 />
               ) : null}
               {step === "followup" ? (
@@ -757,6 +971,7 @@ export function PilotWorkspace() {
                   actor={actor}
                   busy={busy}
                   canVerify={canVerify}
+                  canCorrect={role === "TECNICO" || role === "RESPONSABLE_HYS"}
                   onCorrection={(event, finding) =>
                     void submitForm(
                       event,
@@ -801,10 +1016,12 @@ export function PilotWorkspace() {
 
 function Overview({
   detail,
+  role,
   onStep,
   onDownloadReport,
 }: {
   detail: WorksiteDetail;
+  role: string;
   onStep: (step: Step) => void;
   onDownloadReport: () => void;
 }) {
@@ -819,22 +1036,78 @@ function Overview({
   ] as const;
   const controls = detail.metrics.controls;
   const latestAudit = detail.metrics.latest_audit;
+  const totalRecords =
+    detail.contractors.length +
+    detail.stages.length +
+    detail.people.length +
+    detail.documents.length +
+    detail.machines.length;
   const ratioLabel =
     controls.ratio === null
-      ? "Sin base"
+      ? "Aún no hay auditorías realizadas"
       : `${Math.round(controls.ratio * 100)}%`;
   return (
     <section>
       <div className="section-heading">
         <div>
           <p className="kicker">Estado de la obra</p>
-          <h2>Recorrido operativo</h2>
+          <h2>
+            {role === "AUDITOR"
+              ? "Revisión y auditoría"
+              : role === "CONTRATISTA"
+                ? "Supervisión organizacional"
+                : "Recorrido operativo"}
+          </h2>
         </div>
         <p>
           Un corte sintético de los registros visibles. Cada panel abre el
           detalle que lo respalda.
         </p>
       </div>
+      <p className="dashboard-callout">
+        {role === "AUDITOR"
+          ? "Priorizá documentación pendiente, habilitaciones y verificaciones."
+          : role === "CONTRATISTA"
+            ? "Vista de lectura: revisá estado, vencimientos, desvíos y reportes."
+            : "Priorizá vencimientos, correcciones y registros pendientes."}
+      </p>
+      {!totalRecords ? (
+        <Card className="onboarding-card">
+          <p className="kicker">Siguiente paso</p>
+          <h3>Configurá esta obra antes de operar</h3>
+          <p>
+            La obra está creada sin registros heredados. Seguí este recorrido
+            para preparar un legajo trazable.
+          </p>
+          <ol className="onboarding-list">
+            <li>
+              <button onClick={() => onStep("overview")} type="button">
+                Configurar responsables y actores H&amp;S
+              </button>
+            </li>
+            <li>
+              <button onClick={() => onStep("contractors")} type="button">
+                Registrar contratista principal
+              </button>
+            </li>
+            <li>
+              <button onClick={() => onStep("stages")} type="button">
+                Definir etapa inicial
+              </button>
+            </li>
+            <li>
+              <button onClick={() => onStep("people")} type="button">
+                Incorporar personal
+              </button>
+            </li>
+            <li>
+              <button onClick={() => onStep("documents")} type="button">
+                Preparar documentación
+              </button>
+            </li>
+          </ol>
+        </Card>
+      ) : null}
       <div className="metric-grid">
         {quickMetrics.map(([target, label, value], index) => (
           <button key={target} onClick={() => onStep(target)} type="button">
@@ -859,13 +1132,15 @@ function Overview({
               <div>
                 <strong>{assignment.actor_label}</strong>
                 <span>
-                  {assignment.function_code} ·{" "}
-                  {assignment.profession_code ?? "Sin profesión"}
+                  {pilotLabel(assignment.function_code)} ·{" "}
+                  {pilotLabel(assignment.profession_code)}
                 </span>
               </div>
               <small>
-                {assignment.represented_contractor_name ?? "Proyecto"} ·{" "}
-                {assignment.permission_scope}
+                {assignment.represented_contractor_name ?? "Proyecto / obra"} ·{" "}
+                {assignment.permission_scope === "ORGANIZATION"
+                  ? "Organización"
+                  : "Obra seleccionada"}
               </small>
             </li>
           ))}
@@ -940,7 +1215,7 @@ function Overview({
         >
           {latestAudit ? (
             <div className="dashboard-audit">
-              <strong>{latestAudit.status}</strong>
+              <strong>{pilotLabel(latestAudit.status)}</strong>
               <span>Iniciada {formatDateTime(latestAudit.started_at)}</span>
               {latestAudit.finalized_at ? (
                 <span>
@@ -953,17 +1228,17 @@ function Overview({
           )}
           <div className="control-ratio">
             <div>
-              <span>Ratio CUMPLE / evaluados</span>
+              <span>Resultado de controles evaluados</span>
               <strong>{ratioLabel}</strong>
             </div>
             <p>
-              {controls.numerator} CUMPLE / {controls.denominator} evaluados
+              {controls.numerator} cumplen / {controls.denominator} evaluados
             </p>
           </div>
           <p className="dashboard-legend">
-            Excluye NO_APLICA ({controls.excluded.no_aplica}) y NO_VERIFICADO (
-            {controls.excluded.no_verificado}). Sólo usa controles registrados
-            de la última auditoría visible.
+            Excluye &quot;No aplica&quot; ({controls.excluded.no_aplica}) y
+            &quot;No verificado&quot; ({controls.excluded.no_verificado}). Sólo
+            usa controles registrados de la última auditoría visible.
           </p>
         </DashboardPanel>
       </div>
@@ -976,8 +1251,8 @@ function Overview({
           <StatusBadge value="ALCANCE PILOTO" />
           <h3>Cierre operativo verificable</h3>
           <p>
-            Este corte llega hasta auditoría <strong>FINALIZADA</strong> y
-            desvío <strong>CERRADO</strong> por un Responsable H&amp;S
+            Este corte llega hasta una auditoría <strong>finalizada</strong> y
+            un desvío <strong>cerrado</strong> por un Responsable H&amp;S
             independiente.
           </p>
         </div>
@@ -996,7 +1271,13 @@ function Overview({
   );
 }
 
-function StagesStep({ detail, busy, canManage, onSubmit }: StepProps) {
+function StagesStep({
+  detail,
+  busy,
+  canManage,
+  onSubmit,
+  onUpdate,
+}: StepProps) {
   return (
     <section>
       <StepHeading
@@ -1022,12 +1303,23 @@ function StagesStep({ detail, busy, canManage, onSubmit }: StepProps) {
               />
             </Field>
             <Field label="Nombre">
-              <input
-                name="name"
-                required
-                maxLength={200}
-                placeholder="Preparación"
-              />
+              <select name="name" defaultValue="Preparación">
+                {[
+                  "Preparación",
+                  "Montaje",
+                  "Demolición",
+                  "Excavación",
+                  "Submuración",
+                  "Fundaciones",
+                  "Estructura",
+                  "Albañilería",
+                  "Instalaciones",
+                  "Terminaciones",
+                  "Cierre",
+                ].map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Inicio">
               <input name="started_on" required type="date" />
@@ -1065,6 +1357,7 @@ function StagesStep({ detail, busy, canManage, onSubmit }: StepProps) {
                   <div className="stage-timeline__content">
                     <div className="card-topline">
                       <span>{stage.code}</span>
+                      <StatusBadge value={stage.status ?? "ACTIVA"} />
                       <small>
                         {formatDate(stage.started_on)} —{" "}
                         {formatDate(stage.ended_on)}
@@ -1073,6 +1366,55 @@ function StagesStep({ detail, busy, canManage, onSubmit }: StepProps) {
                     <strong>{stage.name}</strong>
                     {stage.sector ? <span>Sector: {stage.sector}</span> : null}
                     {stage.notes ? <p>{stage.notes}</p> : null}
+                    {stage.history?.length ? (
+                      <details className="inline-history">
+                        <summary>
+                          {stage.history.length} cambios trazados
+                        </summary>
+                        <ol>
+                          {stage.history.map((event) => (
+                            <li key={event.id}>
+                              {formatDateTime(event.created_at)} ·{" "}
+                              {pilotLabel(event.event_type)}
+                              {event.detail ? ` · ${event.detail}` : ""}
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    ) : null}
+                    {onUpdate ? (
+                      <details>
+                        <summary>Actualizar etapa</summary>
+                        <form
+                          className="inline-form"
+                          onSubmit={(event) => onUpdate(event, stage.id)}
+                        >
+                          <select
+                            name="stage_status"
+                            defaultValue={stage.status ?? "ACTIVA"}
+                          >
+                            <option value="PLANIFICADA">Planificada</option>
+                            <option value="ACTIVA">Activa</option>
+                            <option value="CERRADA">Cerrada</option>
+                          </select>
+                          <input
+                            name="stage_ended_on"
+                            type="date"
+                            defaultValue={stage.ended_on ?? ""}
+                          />
+                          <input
+                            name="stage_notes"
+                            placeholder="Nota del cambio"
+                          />
+                          <button
+                            className="button button--dark"
+                            disabled={busy !== null || !canManage}
+                          >
+                            Actualizar
+                          </button>
+                        </form>
+                      </details>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -1095,6 +1437,14 @@ interface StepProps {
   canManage: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onInspection?: (event: FormEvent<HTMLFormElement>, machineId: string) => void;
+  onValidate?: (
+    event: FormEvent<HTMLFormElement>,
+    machineId: string,
+    inspectionId: string,
+  ) => void;
+  onVerify?: (event: FormEvent<HTMLFormElement>, personId: string) => void;
+  onReview?: (event: FormEvent<HTMLFormElement>, documentId: string) => void;
+  onUpdate?: (event: FormEvent<HTMLFormElement>, stageId: string) => void;
   onVersionSubmit?: (
     event: FormEvent<HTMLFormElement>,
     documentId: string,
@@ -1128,7 +1478,6 @@ function ContractorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
                 <option value="">Automática</option>
                 <option value="PRINCIPAL">Principal</option>
                 <option value="CONTRACTOR">Contratista</option>
-                <option value="SUBCONTRACTOR">Subcontratista</option>
               </select>
             </Field>
             <Field label="Empresa contratante (opcional)">
@@ -1163,7 +1512,7 @@ function ContractorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
                     <strong>{item.legal_name}</strong>
                     <span>{item.trade}</span>
                     <small>
-                      {item.participation_type ?? "CONTRACTOR"}
+                      {pilotLabel(item.participation_type ?? "CONTRACTOR")}
                       {item.parent_contracting_company_name
                         ? ` · Depende de ${item.parent_contracting_company_name}`
                         : " · Sin empresa contratante"}
@@ -1186,7 +1535,13 @@ function ContractorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
   );
 }
 
-function PeopleStep({ detail, busy, canManage, onSubmit }: StepProps) {
+function PeopleStep({
+  detail,
+  busy,
+  canManage,
+  onSubmit,
+  onVerify,
+}: StepProps) {
   return (
     <section>
       <StepHeading
@@ -1257,7 +1612,7 @@ function PeopleStep({ detail, busy, canManage, onSubmit }: StepProps) {
                     <strong>{item.display_name}</strong>
                     <span>
                       {item.role_label} · Profesión{" "}
-                      {item.profession_code ?? "OTRA"}
+                      {pilotLabel(item.profession_code ?? "OTRA")}
                     </span>
                   </div>
                   <small>
@@ -1267,6 +1622,38 @@ function PeopleStep({ detail, busy, canManage, onSubmit }: StepProps) {
                       )?.legal_name ??
                       "Contratista asignado"}
                   </small>
+                  <StatusBadge
+                    value={item.habilitation_status ?? "PENDIENTE_VERIFICACION"}
+                  />
+                  {onVerify ? (
+                    <form
+                      className="inline-form"
+                      onSubmit={(event) => onVerify(event, item.id)}
+                    >
+                      <select name="status" defaultValue="HABILITADO">
+                        <option value="HABILITADO">Habilitado</option>
+                        <option value="DOCUMENTACION_INCOMPLETA">
+                          Documentación incompleta
+                        </option>
+                        <option value="NO_HABILITADO">No habilitado</option>
+                      </select>
+                      <input
+                        name="function_label"
+                        required
+                        placeholder="Función verificadora"
+                      />
+                      <input
+                        name="observation"
+                        placeholder="Fundamento u observación"
+                      />
+                      <button
+                        className="button button--dark"
+                        disabled={busy !== null}
+                      >
+                        Verificar
+                      </button>
+                    </form>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -1285,6 +1672,7 @@ function DocumentsStep({
   canManage,
   onSubmit,
   onVersionSubmit,
+  onReview,
 }: StepProps) {
   const subjects = [
     { value: `WORKSITE:${detail.id}`, label: `Obra · ${detail.name}` },
@@ -1330,13 +1718,9 @@ function DocumentsStep({
               ))}
             </select>
           </Field>
-          <Field label="Revisión">
-            <select name="review_status" defaultValue="APROBADO">
-              <option>APROBADO</option>
-              <option>PENDIENTE</option>
-              <option>RECHAZADO</option>
-            </select>
-          </Field>
+          <p className="permission-note">
+            Todo documento nuevo queda pendiente hasta una revisión separada.
+          </p>
           <Field label="Vigente desde">
             <input name="valid_from" type="date" />
           </Field>
@@ -1369,13 +1753,34 @@ function DocumentsStep({
             <dl className="compact-details">
               <div>
                 <dt>Revisión</dt>
-                <dd>{item.review_status}</dd>
+                <dd>{pilotLabel(item.review_status)}</dd>
               </div>
               <div>
                 <dt>Vencimiento</dt>
                 <dd>{formatDate(item.expires_on)}</dd>
               </div>
             </dl>
+            <p className="muted">
+              Cargado por {item.uploaded_by?.slice(0, 8) ?? "actor sintético"}
+              {item.uploaded_at ? ` · ${formatDateTime(item.uploaded_at)}` : ""}
+            </p>
+            {item.reviews?.length ? (
+              <details className="document-history">
+                <summary>Revisiones ({item.reviews.length})</summary>
+                <ul className="document-history__list">
+                  {item.reviews.map((review) => (
+                    <li key={review.id}>
+                      <strong>{pilotLabel(review.result)}</strong>
+                      <span>{review.foundation}</span>
+                      <small>
+                        {review.reviewer_function} ·{" "}
+                        {formatDateTime(review.reviewed_at)}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
             <details className="document-history">
               <summary>Historial ({item.versions.length} versiones)</summary>
               {item.versions.length ? (
@@ -1387,7 +1792,8 @@ function DocumentsStep({
                           Versión {version.version_number} · {version.title}
                         </strong>
                         <span>
-                          {version.document_type} · {version.review_status}
+                          {version.document_type} ·{" "}
+                          {pilotLabel(version.review_status)}
                         </span>
                       </div>
                       <small>
@@ -1425,16 +1831,9 @@ function DocumentsStep({
                       placeholder="SEGURO"
                     />
                   </Field>
-                  <Field label="Revisión">
-                    <select
-                      name="version_review_status"
-                      defaultValue="APROBADO"
-                    >
-                      <option>APROBADO</option>
-                      <option>PENDIENTE</option>
-                      <option>RECHAZADO</option>
-                    </select>
-                  </Field>
+                  <p className="permission-note">
+                    La nueva versión también requiere revisión independiente.
+                  </p>
                   <Field label="Vigente desde">
                     <input name="version_valid_from" type="date" />
                   </Field>
@@ -1463,6 +1862,32 @@ function DocumentsStep({
                 {!canManage ? <PermissionCopy /> : null}
               </details>
             ) : null}
+            {onReview ? (
+              <details className="document-version-form">
+                <summary>Revisar documento</summary>
+                <form
+                  className="form-grid form-grid--wide"
+                  onSubmit={(event) => onReview(event, item.id)}
+                >
+                  <Field label="Resultado">
+                    <select name="review_result" defaultValue="APROBADO">
+                      <option value="APROBADO">Aprobado</option>
+                      <option value="OBSERVADO">Observado</option>
+                      <option value="RECHAZADO">Rechazado</option>
+                    </select>
+                  </Field>
+                  <Field label="Fundamento">
+                    <textarea name="review_foundation" required />
+                  </Field>
+                  <button
+                    className="button button--dark form-action"
+                    disabled={busy !== null}
+                  >
+                    Registrar revisión
+                  </button>
+                </form>
+              </details>
+            ) : null}
           </Card>
         ))}
       </div>
@@ -1482,6 +1907,7 @@ function MachinesStep({
   canManage,
   onSubmit,
   onInspection,
+  onValidate,
 }: StepProps) {
   return (
     <section>
@@ -1504,11 +1930,23 @@ function MachinesStep({
                 placeholder="Autoelevador sintético"
               />
             </Field>
+            <Field label="Tipo de máquina">
+              <input name="machine_type" placeholder="Autoelevador" />
+            </Field>
+            <Field label="Marca y modelo">
+              <input name="brand" placeholder="Marca sintética" />
+            </Field>
+            <Field label="Modelo">
+              <input name="model" placeholder="Modelo sintético" />
+            </Field>
+            <Field label="Patente o identificación">
+              <input name="license_plate" placeholder="SINT-001" />
+            </Field>
             <Field label="Estado inicial">
               <select name="status" defaultValue="OPERATIVA">
-                <option>OPERATIVA</option>
-                <option>CON_OBSERVACIONES</option>
-                <option>FUERA_DE_SERVICIO</option>
+                <option value="OPERATIVA">Operativa</option>
+                <option value="CON_OBSERVACIONES">Con observaciones</option>
+                <option value="FUERA_DE_SERVICIO">Fuera de servicio</option>
               </select>
             </Field>
             <Field label="Motivo de inspección">
@@ -1558,7 +1996,7 @@ function MachinesStep({
                   </div>
                   {item.status === "FUERA_DE_SERVICIO" ? (
                     <p className="machine-warning">
-                      FUERA_DE_SERVICIO: no debe operar hasta una inspección que
+                      Fuera de servicio: no debe operar hasta una inspección que
                       documente el levantamiento de la condición.
                     </p>
                   ) : null}
@@ -1583,6 +2021,43 @@ function MachinesStep({
                               {formatDateTime(inspection.inspected_at)} · Actor{" "}
                               {inspection.actor_id.slice(0, 8)}
                             </small>
+                            {inspection.checklist ? (
+                              <small>
+                                Checklist:{" "}
+                                {Object.entries(inspection.checklist)
+                                  .map(
+                                    ([key, value]) =>
+                                      `${checklistLabel(key)}: ${pilotLabel(value)}`,
+                                  )
+                                  .join(" · ")}
+                              </small>
+                            ) : null}
+                            {inspection.validations?.map((validation) => (
+                              <small key={validation.id}>
+                                Validada por {validation.validator_function} ·{" "}
+                                {formatDateTime(validation.validated_at)}
+                              </small>
+                            ))}
+                            {onValidate ? (
+                              <form
+                                className="inline-form"
+                                onSubmit={(event) =>
+                                  onValidate(event, item.id, inspection.id)
+                                }
+                              >
+                                <input
+                                  name="validation_notes"
+                                  required
+                                  placeholder="Notas de validación"
+                                />
+                                <button
+                                  className="button button--dark"
+                                  disabled={busy !== null}
+                                >
+                                  Validar inspección
+                                </button>
+                              </form>
+                            ) : null}
                           </li>
                         ))}
                       </ol>
@@ -1605,9 +2080,13 @@ function MachinesStep({
                             defaultValue={item.status}
                             name="resulting_status"
                           >
-                            <option>OPERATIVA</option>
-                            <option>CON_OBSERVACIONES</option>
-                            <option>FUERA_DE_SERVICIO</option>
+                            <option value="OPERATIVA">Operativa</option>
+                            <option value="CON_OBSERVACIONES">
+                              Con observaciones
+                            </option>
+                            <option value="FUERA_DE_SERVICIO">
+                              Fuera de servicio
+                            </option>
                           </select>
                         </Field>
                         <Field label="Motivo de reinspección">
@@ -1615,6 +2094,31 @@ function MachinesStep({
                             name="inspection_reason"
                             placeholder="Describí el resultado y la causa de la transición"
                             required
+                          />
+                        </Field>
+                        <Field label="Estado general del checklist">
+                          <select
+                            name="general_condition"
+                            defaultValue="CUMPLE"
+                          >
+                            <option value="CUMPLE">Cumple</option>
+                            <option value="NO_CUMPLE">No cumple</option>
+                            <option value="NO_APLICA">No aplica</option>
+                            <option value="NO_VERIFICADO">No verificado</option>
+                          </select>
+                        </Field>
+                        <Field label="Dispositivos de seguridad">
+                          <select name="safety_devices" defaultValue="CUMPLE">
+                            <option value="CUMPLE">Cumple</option>
+                            <option value="NO_CUMPLE">No cumple</option>
+                            <option value="NO_APLICA">No aplica</option>
+                            <option value="NO_VERIFICADO">No verificado</option>
+                          </select>
+                        </Field>
+                        <Field label="Evidencia o referencia">
+                          <input
+                            name="evidence_note"
+                            placeholder="Referencia sintética"
                           />
                         </Field>
                         <button
@@ -1654,8 +2158,11 @@ function AuditStep({
   busy,
   canManage,
   onStart,
+  onSelectAudit,
   onControl,
   onFinalize,
+  onDownloadReport,
+  onUnregistered,
 }: {
   detail: WorksiteDetail;
   actor: PilotActor;
@@ -1663,8 +2170,11 @@ function AuditStep({
   busy: string | null;
   canManage: boolean;
   onStart: (assignmentId?: string) => void;
+  onSelectAudit: (auditId: string) => void;
   onControl: (event: FormEvent<HTMLFormElement>, catalogCode: string) => void;
   onFinalize: () => void;
+  onDownloadReport: (auditId: string) => void;
+  onUnregistered: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const inProgress = audit?.status === "EN_CURSO";
   const availableControls = audit?.available_controls ?? [];
@@ -1690,7 +2200,7 @@ function AuditStep({
       <StepHeading
         eyebrow="07 · Campo"
         title="Auditoría"
-        text="El checklist es sintético y online. NO_CUMPLE crea el desvío de forma atómica."
+        text="El checklist es sintético y online. Un resultado no conforme crea el desvío de forma atómica."
       />
       {!audit || audit.status === "FINALIZADA" ? (
         <Card className="action-card">
@@ -1709,7 +2219,7 @@ function AuditStep({
               >
                 {auditAssignments.map((assignment) => (
                   <option key={assignment.id} value={assignment.id}>
-                    {assignment.function_code} ·{" "}
+                    {pilotLabel(assignment.function_code)} ·{" "}
                     {assignment.person_name ?? assignment.actor_label}
                   </option>
                 ))}
@@ -1726,6 +2236,30 @@ function AuditStep({
           </button>
         </Card>
       ) : null}
+      {detail.audits.length ? (
+        <Card>
+          <ListHeading count={detail.audits.length}>
+            Historial de auditorías
+          </ListHeading>
+          <div className="audit-history-list">
+            {detail.audits.map((item) => (
+              <button
+                className={item.id === audit?.id ? "is-active" : ""}
+                key={item.id}
+                onClick={() => onSelectAudit(item.id)}
+                type="button"
+              >
+                <strong>Auditoría {item.id.slice(0, 8)}</strong>
+                <span>{formatDateTime(item.started_at)}</span>
+                <small>
+                  {pilotLabel(item.auditor_function)} ·{" "}
+                  {pilotLabel(item.status)}
+                </small>
+              </button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       {!canManage ? (
         <PermissionCopy text="Cambiá a Auditor o Responsable H&S para operar la auditoría." />
       ) : null}
@@ -1738,6 +2272,28 @@ function AuditStep({
             </div>
             <StatusBadge value={audit.status} />
           </div>
+          <dl className="compact-details audit-details">
+            <div>
+              <dt>Auditor</dt>
+              <dd>{audit.auditor_name ?? "Sin informar"}</dd>
+            </div>
+            <div>
+              <dt>Función</dt>
+              <dd>{pilotLabel(audit.auditor_function)}</dd>
+            </div>
+            <div>
+              <dt>Responsable asociado</dt>
+              <dd>{audit.responsible_professional_name ?? "Sin informar"}</dd>
+            </div>
+          </dl>
+          <button
+            className="button button--dark"
+            disabled={busy !== null}
+            onClick={() => onDownloadReport(audit.id)}
+            type="button"
+          >
+            Descargar informe de auditoría
+          </button>
           <div
             aria-label={progressLabel}
             aria-valuemax={availableControls.length}
@@ -1781,6 +2337,7 @@ function AuditStep({
                       busy={busy}
                       canManage={canManage}
                       control={catalogControl}
+                      contractors={detail.contractors}
                       onSubmit={onControl}
                     />
                   ) : null}
@@ -1793,6 +2350,32 @@ function AuditStep({
               </EmptyState>
             ) : null}
           </div>
+          {inProgress ? (
+            <form className="inline-form" onSubmit={onUnregistered}>
+              <input
+                name="unregistered_description"
+                required
+                placeholder="Describí la persona no registrada"
+              />
+              <select name="unregistered_severity" defaultValue="MEDIA">
+                <option value="BAJA">Baja</option>
+                <option value="MEDIA">Media</option>
+                <option value="ALTA">Alta</option>
+                <option value="CRITICA">Crítica</option>
+              </select>
+              <select name="unregistered_contractor_id" defaultValue="">
+                <option value="">Empresa afectada (opcional)</option>
+                {detail.contractors.map((contractor) => (
+                  <option key={contractor.id} value={contractor.id}>
+                    {contractor.legal_name}
+                  </option>
+                ))}
+              </select>
+              <button className="button button--dark" disabled={busy !== null}>
+                Registrar persona no registrada
+              </button>
+            </form>
+          ) : null}
           {inProgress ? (
             <div className="finalize-row">
               <p>
@@ -1830,11 +2413,13 @@ function AuditControlForm({
   busy,
   canManage,
   control,
+  contractors,
   onSubmit,
 }: {
   busy: string | null;
   canManage: boolean;
   control: { catalog_code: string; catalog_title: string };
+  contractors: WorksiteDetail["contractors"];
   onSubmit: (event: FormEvent<HTMLFormElement>, catalogCode: string) => void;
 }) {
   const [result, setResult] = useState<AuditResult>("CUMPLE");
@@ -1857,10 +2442,10 @@ function AuditControlForm({
             onChange={(event) => setResult(event.target.value as AuditResult)}
             value={result}
           >
-            <option>CUMPLE</option>
-            <option>NO_CUMPLE</option>
-            <option>NO_APLICA</option>
-            <option>NO_VERIFICADO</option>
+            <option value="CUMPLE">Cumple</option>
+            <option value="NO_CUMPLE">No cumple</option>
+            <option value="NO_APLICA">No aplica</option>
+            <option value="NO_VERIFICADO">No verificado</option>
           </select>
         </Field>
         {needsReason ? (
@@ -1889,6 +2474,16 @@ function AuditControlForm({
                 required
               />
             </Field>
+            <Field label="Empresa afectada (opcional)">
+              <select name="affected_contractor_id" defaultValue="">
+                <option value="">Sin empresa determinada</option>
+                {contractors.map((contractor) => (
+                  <option key={contractor.id} value={contractor.id}>
+                    {contractor.legal_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
           </>
         ) : null}
         <button
@@ -1907,6 +2502,7 @@ function FollowupStep({
   actor,
   busy,
   canVerify,
+  canCorrect,
   onCorrection,
   onSubmitVerification,
   onVerify,
@@ -1915,6 +2511,7 @@ function FollowupStep({
   actor: PilotActor;
   busy: string | null;
   canVerify: boolean;
+  canCorrect: boolean;
   onCorrection: (event: FormEvent<HTMLFormElement>, finding: Finding) => void;
   onSubmitVerification: (finding: Finding) => void;
   onVerify: (event: FormEvent<HTMLFormElement>, finding: Finding) => void;
@@ -1928,7 +2525,7 @@ function FollowupStep({
       />
       {!detail.findings.length ? (
         <EmptyState>
-          Los desvíos aparecerán acá cuando un control resulte NO_CUMPLE.
+          Los desvíos aparecerán acá cuando un control resulte no conforme.
         </EmptyState>
       ) : null}
       <div className="finding-stack">
@@ -1943,6 +2540,27 @@ function FollowupStep({
                 </div>
                 <h3>{finding.title || `Desvío ${finding.id.slice(0, 8)}`}</h3>
                 <p>{finding.description}</p>
+                <dl className="finding-details">
+                  <div>
+                    <dt>Origen</dt>
+                    <dd>{finding.source_label ?? "Hallazgo manual"}</dd>
+                  </div>
+                  <div>
+                    <dt>Auditoría</dt>
+                    <dd>{finding.audit_id.slice(0, 8)}</dd>
+                  </div>
+                  <div>
+                    <dt>Detectado</dt>
+                    <dd>{formatDateTime(finding.created_at)}</dd>
+                  </div>
+                  <div>
+                    <dt>Afectado</dt>
+                    <dd>
+                      {finding.affected_contractor_name ??
+                        "Sin empresa asignada"}
+                    </dd>
+                  </div>
+                </dl>
               </div>
               <dl>
                 <dt>Plazo</dt>
@@ -1950,7 +2568,7 @@ function FollowupStep({
               </dl>
             </div>
             {finding.status === "ABIERTO" ||
-            finding.status === "EN_CORRECCION" ? (
+            (finding.status === "EN_CORRECCION" && canCorrect) ? (
               <form
                 className="inline-form"
                 onSubmit={(event) => onCorrection(event, finding)}
@@ -2035,10 +2653,12 @@ function FollowupStep({
                   {finding.events.map((event) => (
                     <li key={event.id}>
                       <span>{formatDateTime(event.created_at)}</span>
-                      <strong>{event.event_type}</strong>
+                      <strong>{pilotLabel(event.event_type)}</strong>
                       <small>
-                        {event.from_status ? `${event.from_status} → ` : ""}
-                        {event.to_status}
+                        {event.from_status
+                          ? `${pilotLabel(event.from_status)} → `
+                          : ""}
+                        {pilotLabel(event.to_status)}
                         {event.actor_id
                           ? ` · ${event.actor_id.slice(0, 8)}`
                           : ""}

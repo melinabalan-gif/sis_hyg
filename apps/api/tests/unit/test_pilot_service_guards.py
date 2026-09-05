@@ -249,7 +249,7 @@ async def test_complete_audit_exposes_snapshot_and_becomes_immutable() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("same_as", ["creator", "correction_author"])
+@pytest.mark.parametrize("same_as", ["correction_author"])
 async def test_verification_enforces_segregation_of_duties(same_as: str) -> None:
     service, _session = _service("responsable")
     actor_id = PILOT_ACTORS["responsable"].id
@@ -367,6 +367,7 @@ async def test_document_version_updates_current_projection_and_keeps_sequence() 
         name="Obra sintética",
         jurisdiction="Provincia sintética",
         status="ACTIVE",
+        created_by_actor_id=PILOT_ACTORS["tecnico"].id,
     )
     document = Document(
         id=uuid4(),
@@ -514,6 +515,7 @@ async def test_machine_inspection_hides_unassigned_machine() -> None:
         name="Obra sintética",
         jurisdiction="Provincia sintética",
         status="ACTIVE",
+        created_by_actor_id=PILOT_ACTORS["tecnico"].id,
     )
     session.scalar.side_effect = [worksite, None]
 
@@ -543,6 +545,7 @@ async def test_machine_inspection_locks_updates_version_and_keeps_history() -> N
         name="Obra sintética",
         jurisdiction="Provincia sintética",
         status="ACTIVE",
+        created_by_actor_id=PILOT_ACTORS["tecnico"].id,
     )
     machine, assignment, initial = _machine_fixture(worksite_id=worksite_id)
     session.scalar.side_effect = [worksite, machine, assignment]

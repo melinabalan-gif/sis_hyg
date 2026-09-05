@@ -65,7 +65,16 @@ PILOT_ACTORS = MappingProxyType(
             key="responsable-suplente",
             id=UUID("00000000-0000-4000-8000-000000000004"),
             role=PilotRole.RESPONSABLE_HYS,
-            label="Profesional H&S contratista principal",
+            label="Licenciado H&S de contratista principal",
+            profession_code="LICENCIADO_HYS",
+        ),
+        # Compatibility alias for previously persisted synthetic walkthroughs.
+        # The web identity selector exposes the canonical key below instead.
+        "licenciado-contratista-principal": PilotActor(
+            key="licenciado-contratista-principal",
+            id=UUID("00000000-0000-4000-8000-000000000004"),
+            role=PilotRole.RESPONSABLE_HYS,
+            label="Licenciado H&S de contratista principal",
             profession_code="LICENCIADO_HYS",
         ),
         "contratista-principal": PilotActor(

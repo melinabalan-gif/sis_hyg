@@ -39,6 +39,9 @@ class Worksite(Base):
     )
     code: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    country: Mapped[str | None] = mapped_column(String(120))
+    province: Mapped[str | None] = mapped_column(String(120))
+    municipality: Mapped[str | None] = mapped_column(String(120))
     jurisdiction: Mapped[str] = mapped_column(
         String(200), nullable=False, server_default=text("'SIN_ESPECIFICAR'")
     )
@@ -51,3 +54,4 @@ class Worksite(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    created_by_actor_id: Mapped[UUID | None] = mapped_column()

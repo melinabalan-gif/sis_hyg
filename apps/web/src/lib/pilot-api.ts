@@ -1,14 +1,22 @@
 export const PILOT_ACTORS = [
-  { value: "tecnico", label: "Técnico de obra", role: "TECNICO" },
-  { value: "auditor", label: "Auditor", role: "AUDITOR" },
+  {
+    value: "tecnico",
+    label: "Técnico H&S de contratista principal",
+    role: "TECNICO",
+  },
+  {
+    value: "auditor",
+    label: "Técnico auditor delegado del proyecto",
+    role: "AUDITOR",
+  },
   {
     value: "responsable",
-    label: "Responsable H&S",
+    label: "Licenciado H&S del proyecto",
     role: "RESPONSABLE_HYS",
   },
   {
-    value: "responsable-suplente",
-    label: "Responsable H&S suplente",
+    value: "licenciado-contratista-principal",
+    label: "Licenciado H&S de contratista principal",
     role: "RESPONSABLE_HYS",
   },
   {
@@ -28,6 +36,9 @@ export interface WorksiteSummary {
   code: string;
   name: string;
   jurisdiction: string;
+  country?: string | null;
+  province?: string | null;
+  municipality?: string | null;
   status: string;
   version?: number;
 }
@@ -43,6 +54,16 @@ export interface WorksiteStage {
   notes?: string | null;
   created_at: string;
   updated_at: string;
+  status?: "PLANIFICADA" | "ACTIVA" | "CERRADA";
+  history?: WorksiteStageEvent[];
+}
+
+export interface WorksiteStageEvent {
+  id: Identifier;
+  event_type: string;
+  actor_id: Identifier;
+  detail: string;
+  created_at: string;
 }
 
 export interface Contractor {
@@ -65,6 +86,10 @@ export interface Person {
   contractor_name?: string;
   started_on?: string;
   ended_on?: string | null;
+  habilitation_status?: string;
+  habilitation_verified_by?: Identifier | null;
+  habilitation_verified_at?: string | null;
+  habilitation_observation?: string | null;
 }
 
 export type DocumentSubjectKind =
@@ -97,6 +122,18 @@ export interface PilotDocument {
   subject_id: Identifier;
   subject_name?: string;
   versions: PilotDocumentVersion[];
+  uploaded_by?: Identifier | null;
+  uploaded_at?: string | null;
+  reviews?: DocumentReview[];
+}
+
+export interface DocumentReview {
+  id: Identifier;
+  reviewer: Identifier;
+  reviewer_function: string;
+  reviewed_at: string;
+  result: "APROBADO" | "OBSERVADO" | "RECHAZADO";
+  foundation: string;
 }
 
 export interface Machine {
@@ -113,6 +150,11 @@ export interface Machine {
   started_on: string;
   ended_on?: string | null;
   inspections: MachineInspection[];
+  machine_type?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  license_plate?: string | null;
+  operator_person_id?: Identifier | null;
 }
 
 export interface MachineInspection {
@@ -121,6 +163,18 @@ export interface MachineInspection {
   reason: string;
   actor_id: Identifier;
   inspected_at: string;
+  checklist?: Record<string, string>;
+  evidence_note?: string | null;
+  inspector_function?: string | null;
+  validations?: MachineInspectionValidation[];
+}
+
+export interface MachineInspectionValidation {
+  id: Identifier;
+  validated_by: Identifier;
+  validator_function: string;
+  notes: string;
+  validated_at: string;
 }
 
 export interface AuditControl {
@@ -151,6 +205,9 @@ export interface Audit {
   editor_actor?: string;
   available_controls: AuditCatalogControl[];
   controls: AuditControl[];
+  auditor_name?: string | null;
+  auditor_function?: string | null;
+  responsible_professional_name?: string | null;
 }
 
 export interface FunctionalAssignment {
@@ -200,6 +257,7 @@ export interface FindingEvent {
 export interface Finding {
   id: Identifier;
   audit_id: Identifier;
+  audit_control_id?: Identifier | null;
   title: string;
   description: string;
   status: string;
@@ -208,7 +266,11 @@ export interface Finding {
   due_at: string;
   overdue?: boolean;
   created_by?: string;
+  created_at?: string;
   closed_at?: string | null;
+  affected_contractor_id?: Identifier | null;
+  affected_contractor_name?: string | null;
+  source_label?: string | null;
   corrections: FindingCorrection[];
   verifications: FindingVerification[];
   events: FindingEvent[];
@@ -369,8 +431,83 @@ export async function downloadWorksiteReport(
   return response.blob();
 }
 
+export async function downloadAuditReport(
+  id: Identifier,
+  actor: PilotActor,
+): Promise<Blob> {
+  const response = await fetch(`/api/v1/audits/${id}/report.pdf`, {
+    headers: {
+      Accept: "application/pdf",
+      "X-Pilot-Actor": actor,
+    },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new PilotApiError(
+      response.status,
+      errorMessage(payload, response.status),
+    );
+  }
+  return response.blob();
+}
+
 export function actorRole(actor: PilotActor): PilotRole {
   return PILOT_ACTORS.find((item) => item.value === actor)?.role ?? "TECNICO";
+}
+
+const PILOT_LABELS: Record<string, string> = {
+  ACTIVE: "Activa",
+  ABIERTO: "Abierto",
+  ARCHIVED: "Archivada",
+  ACTIVA: "Activa",
+  ACTIVO: "Activo",
+  APROBADO: "Aprobado",
+  AUDITOR_DELEGADO_PROYECTO: "Técnico auditor delegado del proyecto",
+  CERRADA: "Cerrada",
+  CERRADO: "Cerrado",
+  CON_OBSERVACIONES: "Con observaciones",
+  CONTRATISTA: "Contratista",
+  CUMPLE: "Cumple",
+  CREATED_FROM_CONTROL: "Desvío detectado durante auditoría",
+  CORRECTION_ADDED: "Corrección informada",
+  DOCUMENTACION_INCOMPLETA: "Documentación incompleta",
+  EN_CURSO: "En curso",
+  EN_CORRECCION: "En corrección",
+  FINALIZADA: "Finalizada",
+  FUERA_DE_SERVICIO: "Fuera de servicio",
+  HABILITADO: "Habilitado",
+  ALTA: "Alta",
+  BAJA: "Baja",
+  CRITICA: "Crítica",
+  LICENCIADO_HYS: "Licenciado H&S",
+  NO_APLICA: "No aplica",
+  NO_CUMPLE: "No cumple",
+  NO_HABILITADO: "No habilitado",
+  NO_VERIFICADO: "No verificado",
+  OBSERVADO: "Observado",
+  OPERATIVA: "Operativa",
+  PENDIENTE: "Pendiente",
+  PENDIENTE_VERIFICACION: "Pendiente de verificación",
+  PLANIFICADA: "Planificada",
+  PRINCIPAL: "Contratista principal",
+  RECHAZADO: "Rechazado",
+  RECHAZADA: "Rechazada",
+  RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL:
+    "Licenciado H&S de contratista principal",
+  RESPONSABLE_HYS_PROYECTO: "Licenciado H&S del proyecto",
+  SUBMITTED_FOR_VERIFICATION: "Corrección enviada a verificación",
+  TECNICO_HYS: "Técnico H&S",
+  TECNICO_HYS_CONTRATISTA_PRINCIPAL: "Técnico H&S de contratista principal",
+  UNREGISTERED_PERSON_FOUND: "Persona no registrada detectada",
+  VERIFICATION_ACEPTADA: "Corrección verificada y desvío cerrado",
+  VERIFICATION_RECHAZADA: "Corrección rechazada",
+  VENCIDO: "Vencido",
+  VIGENTE: "Vigente",
+};
+
+export function pilotLabel(value?: string | null): string {
+  if (!value) return "Sin informar";
+  return PILOT_LABELS[value] ?? value.replaceAll("_", " ").toLowerCase();
 }
 
 export function formatDate(value?: string | null): string {

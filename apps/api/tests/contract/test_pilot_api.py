@@ -47,6 +47,7 @@ class FakePilotService:
                     "by_status": {
                         "FALTANTE": 0,
                         "PENDIENTE": 0,
+                        "OBSERVADO": 0,
                         "RECHAZADO": 0,
                         "POR_VENCER": 0,
                         "VENCIDO": 0,
@@ -204,7 +205,10 @@ async def test_worksite_list_is_a_direct_summary_array(client, pilot_app: FastAP
             "version": 1,
             "created_at": "2026-09-03T15:00:00Z",
             "updated_at": "2026-09-03T15:00:00Z",
-            "jurisdiction": "Provincia sintética",
+                "jurisdiction": "Provincia sintética",
+                "country": None,
+                "province": None,
+                "municipality": None,
         }
     ]
 
@@ -226,7 +230,10 @@ async def test_worksite_detail_has_direct_aggregate_arrays(client, pilot_app: Fa
         "version",
         "created_at",
         "updated_at",
-        "jurisdiction",
+            "jurisdiction",
+            "country",
+            "province",
+            "municipality",
         "contractors",
         "functional_assignments",
         "people",

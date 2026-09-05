@@ -249,8 +249,9 @@ def test_worksite_metrics_reconcile_visible_records() -> None:
                 status="ABIERTO",
                 due_at=datetime(2026, 9, 3, 15, 0, tzinfo=UTC),
                 overdue=True,
-                closed_at=None,
-                created_by=uuid4(),
+                    closed_at=None,
+                    created_by=uuid4(),
+                    created_at=now,
             ),
             FindingView(
                 id=uuid4(),
@@ -262,8 +263,9 @@ def test_worksite_metrics_reconcile_visible_records() -> None:
                 status="CERRADO",
                 due_at=datetime(2026, 9, 3, 15, 0, tzinfo=UTC),
                 overdue=False,
-                closed_at=now,
-                created_by=uuid4(),
+                    closed_at=now,
+                    created_by=uuid4(),
+                    created_at=now,
             ),
         ],
         [
@@ -340,6 +342,7 @@ def test_worksite_metrics_reconcile_visible_records() -> None:
     assert metrics.documents.by_status == {
         DocumentDisplayStatus.FALTANTE: 0,
         DocumentDisplayStatus.PENDIENTE: 1,
+        DocumentDisplayStatus.OBSERVADO: 0,
         DocumentDisplayStatus.RECHAZADO: 0,
         DocumentDisplayStatus.POR_VENCER: 0,
         DocumentDisplayStatus.VENCIDO: 0,

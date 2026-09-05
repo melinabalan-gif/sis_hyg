@@ -121,10 +121,9 @@ describe("HomePage", () => {
     await screen.findByText(/creá la primera obra sintética/i);
     await user.type(screen.getByLabelText("Código"), "OBR-001");
     await user.type(screen.getByLabelText("Nombre"), "Obra Piloto Norte");
-    await user.type(
-      screen.getByLabelText("Jurisdicción"),
-      "Provincia sintética",
-    );
+    await user.type(screen.getByLabelText("País"), "Argentina");
+    await user.type(screen.getByLabelText("Provincia"), "Provincia sintética");
+    await user.type(screen.getByLabelText("Municipio"), "Municipio sintético");
     await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     expect(
@@ -135,7 +134,7 @@ describe("HomePage", () => {
     ).toBeVisible();
     expect(screen.getByText(/obra creada y abierta/i)).toBeVisible();
     expect(screen.getByText(/no hay documentos registrados/i)).toBeVisible();
-    expect(screen.getByText("Sin base")).toBeVisible();
+    expect(screen.getByText("Aún no hay auditorías realizadas")).toBeVisible();
     expect(screen.getByText(/no hay auditorías registradas/i)).toBeVisible();
     await user.click(screen.getByRole("tab", { name: /03.*contratistas/i }));
     expect(
@@ -217,9 +216,9 @@ describe("HomePage", () => {
           "Vencidos sin cerrar: 1",
       ),
     ).toBeVisible();
-    expect(screen.getByText("Sin base")).toBeVisible();
+    expect(screen.getByText("Aún no hay auditorías realizadas")).toBeVisible();
     expect(
-      screen.getByText(/excluye no_aplica \(2\) y no_verificado \(1\)/i),
+      screen.getByText(/excluye "no aplica" \(2\) y "no verificado" \(1\)/i),
     ).toBeVisible();
 
     await user.click(
@@ -250,10 +249,9 @@ describe("HomePage", () => {
     await screen.findByText(/creá la primera obra sintética/i);
     await user.type(screen.getByLabelText("Código"), "OBR-001");
     await user.type(screen.getByLabelText("Nombre"), "Duplicada");
-    await user.type(
-      screen.getByLabelText("Jurisdicción"),
-      "Provincia sintética",
-    );
+    await user.type(screen.getByLabelText("País"), "Argentina");
+    await user.type(screen.getByLabelText("Provincia"), "Provincia sintética");
+    await user.type(screen.getByLabelText("Municipio"), "Municipio sintético");
     await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     expect(await screen.findByText(/el código ya existe/i)).toHaveClass(
@@ -344,7 +342,7 @@ describe("HomePage", () => {
         name: "2 de 3 controles respondidos",
       }),
     ).toBeVisible();
-    expect(screen.getAllByText("CUMPLE").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Cumple").length).toBeGreaterThan(0);
   });
 
   it("permite registrar etapas simultáneas y las muestra en la línea temporal", async () => {
@@ -387,19 +385,22 @@ describe("HomePage", () => {
     const codeFields = screen.getAllByLabelText("Código");
     const nameFields = screen.getAllByLabelText("Nombre");
     await user.type(codeFields.at(-1)!, "STG-001");
-    await user.type(nameFields.at(-1)!, "Preparación");
+    await user.selectOptions(nameFields.at(-1)!, "Preparación");
     await user.type(screen.getByLabelText("Inicio"), "2026-09-01");
     await user.click(screen.getByRole("button", { name: /guardar etapa/i }));
-    expect(await screen.findByText("Preparación")).toBeVisible();
+    expect((await screen.findAllByText("Preparación")).at(-1)).toBeVisible();
 
     await user.type(screen.getAllByLabelText("Código").at(-1)!, "STG-002");
-    await user.type(screen.getAllByLabelText("Nombre").at(-1)!, "Montaje");
+    await user.selectOptions(
+      screen.getAllByLabelText("Nombre").at(-1)!,
+      "Montaje",
+    );
     fireEvent.change(screen.getByLabelText("Inicio"), {
       target: { value: "2026-09-15" },
     });
     await user.click(screen.getByRole("button", { name: /guardar etapa/i }));
 
-    expect(await screen.findByText("Montaje")).toBeVisible();
+    expect((await screen.findAllByText("Montaje")).at(-1)).toBeVisible();
     expect(screen.getByText("2", { selector: ".counter" })).toBeVisible();
   });
 
@@ -537,6 +538,10 @@ describe("HomePage", () => {
           expect(payload).toEqual({
             resulting_status: "FUERA_DE_SERVICIO",
             reason: "Falla crítica detectada",
+            checklist: {
+              general_condition: "CUMPLE",
+              safety_devices: "CUMPLE",
+            },
           });
           machine = {
             ...machine,
@@ -598,7 +603,7 @@ describe("HomePage", () => {
       screen.getByText("Versión 2 · Última inspección registrada"),
     ).toBeVisible();
     expect(
-      screen.getByText(/fuera_de_servicio: no debe operar/i),
+      screen.getByText(/fuera de servicio: no debe operar/i),
     ).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/v1/worksites/${worksite.id}/machines/${machineId}/inspections`,
