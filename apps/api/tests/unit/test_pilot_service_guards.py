@@ -485,10 +485,10 @@ async def test_machine_inspection_requires_resource_write_permission() -> None:
         await service.record_machine_inspection(
             uuid4(),
             uuid4(),
-                MachineInspectionCreate(
-                    resulting_status="CON_OBSERVACIONES",
-                    reason="Observación sintética",
-                    checklist=_checklist(),
+            MachineInspectionCreate(
+                resulting_status="CON_OBSERVACIONES",
+                reason="Observación sintética",
+                checklist=_checklist(),
             ),
         )
 
@@ -514,10 +514,10 @@ async def test_machine_inspection_rejects_archived_worksite() -> None:
         await service.record_machine_inspection(
             worksite.id,
             uuid4(),
-                MachineInspectionCreate(
-                    resulting_status="OPERATIVA",
-                    reason="Reinspección sintética",
-                    checklist=_checklist(),
+            MachineInspectionCreate(
+                resulting_status="OPERATIVA",
+                reason="Reinspección sintética",
+                checklist=_checklist(),
             ),
         )
 
@@ -543,10 +543,10 @@ async def test_machine_inspection_hides_unassigned_machine() -> None:
         await service.record_machine_inspection(
             worksite.id,
             uuid4(),
-                MachineInspectionCreate(
-                    resulting_status="OPERATIVA",
-                    reason="Reinspección sintética",
-                    checklist=_checklist(),
+            MachineInspectionCreate(
+                resulting_status="OPERATIVA",
+                reason="Reinspección sintética",
+                checklist=_checklist(),
             ),
         )
 
@@ -586,10 +586,10 @@ async def test_machine_inspection_locks_updates_version_and_keeps_history() -> N
     response = await service.record_machine_inspection(
         worksite_id,
         machine.id,
-            MachineInspectionCreate(
-                resulting_status="FUERA_DE_SERVICIO",
-                reason="Falla crítica sintética",
-                checklist=_checklist(),
+        MachineInspectionCreate(
+            resulting_status="FUERA_DE_SERVICIO",
+            reason="Falla crítica sintética",
+            checklist=_checklist(),
         ),
     )
 

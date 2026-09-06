@@ -115,9 +115,7 @@ def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS hys_block_finalized_audit_mutation()")
 
     op.drop_index("ix_findings_org_responsible_contractor", table_name="findings")
-    op.drop_constraint(
-        "fk_findings_org_responsible_person_people", "findings", type_="foreignkey"
-    )
+    op.drop_constraint("fk_findings_org_responsible_person_people", "findings", type_="foreignkey")
     op.drop_constraint(
         "fk_findings_org_responsible_contractor_contractors", "findings", type_="foreignkey"
     )

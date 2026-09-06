@@ -94,6 +94,7 @@ def _machine_checklist() -> dict[str, str]:
         "specific_devices": "NO_APLICA",
     }
 
+
 MUTABLE_TABLES = {
     "audit_controls",
     "audits",
@@ -341,7 +342,7 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
         (DEMO_SECONDARY_CONTRACTOR_ID, "CONTRACTOR", DEMO_PRINCIPAL_CONTRACTOR_ID),
         (
             DEMO_SECONDARY_SUBCONTRACTOR_ID,
-                "CONTRACTOR",
+            "CONTRACTOR",
             DEMO_SECONDARY_CONTRACTOR_ID,
         ),
     ]
@@ -939,9 +940,7 @@ async def test_machine_inspections_are_initial_and_append_only_transitions(
         assert recovered.status.value == "OPERATIVA"
         assert recovered.version == 3
         assert len(recovered.inspections) == 2
-        assert {
-            (item.resulting_status.value, item.reason) for item in recovered.inspections
-        } == {
+        assert {(item.resulting_status.value, item.reason) for item in recovered.inspections} == {
             ("FUERA_DE_SERVICIO", "Falla crítica detectada"),
             ("OPERATIVA", "Reparación verificada en reinspección"),
         }
@@ -1114,10 +1113,10 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                 audit.id,
                 AuditControlCreate(
                     catalog_code="SYN-EPP-001",
-                        result=ControlResult.NO_CUMPLE,
-                        severity_code="MEDIA",
-                        finding_description="Completar la entrega sintética de EPP.",
-                        affected_contractor_id=principal.id,
+                    result=ControlResult.NO_CUMPLE,
+                    severity_code="MEDIA",
+                    finding_description="Completar la entrega sintética de EPP.",
+                    affected_contractor_id=principal.id,
                 ),
             ),
         )

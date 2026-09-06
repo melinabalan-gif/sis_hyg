@@ -164,9 +164,7 @@ def _report_lines(detail: WorksiteDetail) -> list[str]:
     lines.extend(["", "Desvios y seguimiento", f"Total: {metrics.findings.total}"])
     for finding in detail.findings:
         responsible_name = (
-            finding.responsible_person_name
-            or finding.responsible_contractor_name
-            or "Sin asignar"
+            finding.responsible_person_name or finding.responsible_contractor_name or "Sin asignar"
         )
         lines.append(
             f"- {str(finding.id)[:8]} | {_label(finding.status)} | "
@@ -234,9 +232,7 @@ def _audit_lines(detail: WorksiteDetail, audit_id: object) -> list[str]:
             f"Hallazgo: {_text(finding.description)}"
         )
         responsible_name = (
-            finding.responsible_person_name
-            or finding.responsible_contractor_name
-            or "Sin asignar"
+            finding.responsible_person_name or finding.responsible_contractor_name or "Sin asignar"
         )
         lines.append(
             f"  Afectado: {_text(finding.affected_contractor_name or 'Sin empresa')} | "
@@ -278,9 +274,7 @@ def build_audit_report_pdf(detail: WorksiteDetail, audit_id: object) -> bytes:
 
 def _build_pdf(lines: list[str]) -> bytes:
     page_size = 37
-    pages = [
-        lines[index : index + page_size] for index in range(0, len(lines), page_size)
-    ] or [[]]
+    pages = [lines[index : index + page_size] for index in range(0, len(lines), page_size)] or [[]]
     page_count = len(pages)
     page_bodies: list[bytes] = []
     content_bodies: list[bytes] = []
@@ -313,7 +307,7 @@ def _build_pdf(lines: list[str]) -> bytes:
         "<< /Type /Catalog /Pages 2 0 R >>".encode("ascii"),
         (
             f"<< /Type /Pages /Kids "
-            f"[{ ' '.join(f'{3 + index} 0 R' for index in range(page_count)) }] "
+            f"[{' '.join(f'{3 + index} 0 R' for index in range(page_count))}] "
             f"/Count {page_count} >>"
         ).encode("ascii"),
         *page_bodies,

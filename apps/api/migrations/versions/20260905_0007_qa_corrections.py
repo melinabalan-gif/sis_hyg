@@ -64,7 +64,9 @@ def upgrade() -> None:
     op.add_column("worksites", sa.Column("country", sa.String(120), nullable=True))
     op.add_column("worksites", sa.Column("province", sa.String(120), nullable=True))
     op.add_column("worksites", sa.Column("municipality", sa.String(120), nullable=True))
-    op.add_column("worksites", sa.Column("created_by_actor_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column(
+        "worksites", sa.Column("created_by_actor_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
     op.add_column(
         "worksite_stages",
         sa.Column("status", sa.String(16), server_default=sa.text("'ACTIVA'"), nullable=False),
@@ -75,7 +77,9 @@ def upgrade() -> None:
         "status IN ('PLANIFICADA', 'ACTIVA', 'CERRADA')",
     )
 
-    op.add_column("documents", sa.Column("uploaded_by_actor_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column(
+        "documents", sa.Column("uploaded_by_actor_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
     op.add_column("documents", sa.Column("uploaded_at", sa.DateTime(timezone=True), nullable=True))
     # Use explicit SQL so the physical names remain stable independently of
     # Alembic/SQLAlchemy naming-convention handling.
@@ -87,7 +91,9 @@ def upgrade() -> None:
         CHECK (review_status IN ('PENDIENTE', 'APROBADO', 'OBSERVADO', 'RECHAZADO'))
         """
     )
-    op.execute("ALTER TABLE document_versions DROP CONSTRAINT ck_document_versions_valid_review_status")
+    op.execute(
+        "ALTER TABLE document_versions DROP CONSTRAINT ck_document_versions_valid_review_status"
+    )
     op.execute(
         """
         ALTER TABLE document_versions
@@ -111,9 +117,16 @@ def upgrade() -> None:
     )
 
     for column in ("machine_type", "brand", "model", "license_plate"):
-        op.add_column("machines", sa.Column(column, sa.String(120 if column != "license_plate" else 32), nullable=True))
-    op.add_column("machines", sa.Column("owner_contractor_id", postgresql.UUID(as_uuid=True), nullable=True))
-    op.add_column("machines", sa.Column("operator_person_id", postgresql.UUID(as_uuid=True), nullable=True))
+        op.add_column(
+            "machines",
+            sa.Column(column, sa.String(120 if column != "license_plate" else 32), nullable=True),
+        )
+    op.add_column(
+        "machines", sa.Column("owner_contractor_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
+    op.add_column(
+        "machines", sa.Column("operator_person_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
     op.create_foreign_key(
         "fk_machines_org_owner_contractor_contractors",
         "machines",
@@ -130,10 +143,14 @@ def upgrade() -> None:
     )
     op.add_column(
         "machine_inspections",
-        sa.Column("checklist", postgresql.JSONB(), server_default=sa.text("'{}'::jsonb"), nullable=False),
+        sa.Column(
+            "checklist", postgresql.JSONB(), server_default=sa.text("'{}'::jsonb"), nullable=False
+        ),
     )
     op.add_column("machine_inspections", sa.Column("evidence_note", sa.Text(), nullable=True))
-    op.add_column("machine_inspections", sa.Column("inspector_function", sa.String(120), nullable=True))
+    op.add_column(
+        "machine_inspections", sa.Column("inspector_function", sa.String(120), nullable=True)
+    )
 
     op.create_table(
         "worksite_stage_events",
@@ -143,9 +160,16 @@ def upgrade() -> None:
         sa.Column("actor_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("event_type", sa.String(64), nullable=False),
         sa.Column("detail", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_worksite_stage_events"),
-        sa.UniqueConstraint("organization_id", "id", name="uq_worksite_stage_events_organization_id_id"),
+        sa.UniqueConstraint(
+            "organization_id", "id", name="uq_worksite_stage_events_organization_id_id"
+        ),
         sa.ForeignKeyConstraint(
             ["organization_id", "stage_id"],
             ["worksite_stages.organization_id", "worksite_stages.id"],
@@ -169,10 +193,17 @@ def upgrade() -> None:
         sa.Column("status", sa.String(32), nullable=False),
         sa.Column("function_label", sa.String(160), nullable=False),
         sa.Column("verified_by_actor_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("verified_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "verified_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("observation", sa.Text(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="pk_person_verifications"),
-        sa.UniqueConstraint("organization_id", "id", name="uq_person_verifications_organization_id_id"),
+        sa.UniqueConstraint(
+            "organization_id", "id", name="uq_person_verifications_organization_id_id"
+        ),
         sa.ForeignKeyConstraint(
             ["organization_id", "person_id"],
             ["people.organization_id", "people.id"],
@@ -202,7 +233,12 @@ def upgrade() -> None:
         sa.Column("document_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("reviewer_actor_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("reviewer_function", sa.String(120), nullable=False),
-        sa.Column("reviewed_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "reviewed_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("result", sa.String(32), nullable=False),
         sa.Column("foundation", sa.Text(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_document_reviews"),
@@ -229,9 +265,16 @@ def upgrade() -> None:
         sa.Column("validated_by_actor_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("validator_function", sa.String(120), nullable=False),
         sa.Column("notes", sa.Text(), nullable=False),
-        sa.Column("validated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "validated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_machine_inspection_validations"),
-        sa.UniqueConstraint("organization_id", "id", name="uq_machine_inspection_validations_organization_id_id"),
+        sa.UniqueConstraint(
+            "organization_id", "id", name="uq_machine_inspection_validations_organization_id_id"
+        ),
         sa.ForeignKeyConstraint(
             ["organization_id", "inspection_id"],
             ["machine_inspections.organization_id", "machine_inspections.id"],
@@ -263,7 +306,9 @@ def downgrade() -> None:
     op.drop_table("person_verifications")
 
     op.execute("REVOKE ALL PRIVILEGES ON TABLE worksite_stage_events FROM hys_app")
-    op.execute("DROP POLICY IF EXISTS worksite_stage_events_tenant_isolation ON worksite_stage_events")
+    op.execute(
+        "DROP POLICY IF EXISTS worksite_stage_events_tenant_isolation ON worksite_stage_events"
+    )
     op.drop_index("ix_worksite_stage_events_org_stage_created", table_name="worksite_stage_events")
     op.drop_table("worksite_stage_events")
 
@@ -276,7 +321,14 @@ def downgrade() -> None:
     op.drop_constraint(
         "fk_machines_org_owner_contractor_contractors", "machines", type_="foreignkey"
     )
-    for column in ("operator_person_id", "owner_contractor_id", "license_plate", "model", "brand", "machine_type"):
+    for column in (
+        "operator_person_id",
+        "owner_contractor_id",
+        "license_plate",
+        "model",
+        "brand",
+        "machine_type",
+    ):
         op.drop_column("machines", column)
     op.execute(
         "ALTER TABLE document_versions DROP CONSTRAINT ck_document_versions_valid_review_status"

@@ -185,9 +185,7 @@ class WorksiteStage(Base):
     ended_on: Mapped[date | None] = mapped_column(Date)
     sector: Mapped[str | None] = mapped_column(String(120))
     notes: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(
-        String(16), nullable=False, server_default=text("'ACTIVA'")
-    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'ACTIVA'"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

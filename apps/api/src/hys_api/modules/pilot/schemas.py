@@ -351,8 +351,7 @@ class MachineInspectionCreate(StrictSchema):
             if unknown:
                 details.append(f"no reconocidos: {', '.join(sorted(unknown))}")
             raise ValueError(
-                "El checklist técnico debe incluir todos los controles "
-                f"({'; '.join(details)})."
+                f"El checklist técnico debe incluir todos los controles ({'; '.join(details)})."
             )
         return self
 
@@ -431,9 +430,7 @@ class AuditControlCreate(StrictSchema):
                 self.responsible_person_id,
             )
         ):
-            raise ValueError(
-                "La empresa y la persona responsable sólo se permiten para NO_CUMPLE"
-            )
+            raise ValueError("La empresa y la persona responsable sólo se permiten para NO_CUMPLE")
         return self
 
 

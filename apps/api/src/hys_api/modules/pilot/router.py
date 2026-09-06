@@ -103,11 +103,7 @@ async def get_worksite(
         **COMMON_ERRORS,
         200: {
             "description": "Synchronous synthetic worksite report",
-            "content": {
-                "application/pdf": {
-                    "schema": {"type": "string", "format": "binary"}
-                }
-            },
+            "content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}},
         },
     },
 )

@@ -112,9 +112,7 @@ _CONTRACTOR_FUNCTIONS = frozenset(
 _PRINCIPAL_CONTRACTOR_FUNCTIONS = frozenset(
     {"RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL", "TECNICO_HYS_CONTRATISTA_PRINCIPAL"}
 )
-_OTHER_CONTRACTOR_FUNCTIONS = frozenset(
-    {"RESPONSABLE_HYS_CONTRATISTA", "TECNICO_HYS_CONTRATISTA"}
-)
+_OTHER_CONTRACTOR_FUNCTIONS = frozenset({"RESPONSABLE_HYS_CONTRATISTA", "TECNICO_HYS_CONTRATISTA"})
 _ALL_FUNCTIONS = _PROJECT_FUNCTIONS | _CONTRACTOR_FUNCTIONS
 _RESPONSIBLE_FUNCTIONS = frozenset(
     {"RESPONSABLE_HYS_PROYECTO", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"}
@@ -274,9 +272,7 @@ class PilotService:
             ]
             visible_person_ids = {item.id for item in visible_people}
             visible_machines = [
-                item
-                for item in machines
-                if item.contractor_id in visible_contractor_ids
+                item for item in machines if item.contractor_id in visible_contractor_ids
             ]
             visible_machine_ids = {item.id for item in visible_machines}
             contractors = [item for item in contractors if item.id in visible_contractor_ids]
@@ -285,9 +281,7 @@ class PilotService:
             documents = [
                 item
                 for item in documents
-                if (
-                    item.subject_kind is SubjectKind.WORKSITE
-                )
+                if (item.subject_kind is SubjectKind.WORKSITE)
                 or (
                     item.subject_kind is SubjectKind.CONTRACTOR
                     and item.subject_id in visible_contractor_ids
@@ -307,9 +301,7 @@ class PilotService:
                 if item.represented_contractor_id in visible_contractor_ids
             ]
             findings = [
-                item
-                for item in findings
-                if item.affected_contractor_id in visible_contractor_ids
+                item for item in findings if item.affected_contractor_id in visible_contractor_ids
             ]
         metrics = derive_worksite_metrics(
             documents,
@@ -622,13 +614,14 @@ class PilotService:
             await self._get_worksite_contractor_assignment(
                 audit.worksite_id, payload.affected_contractor_id
             )
-        responsible_contractor_id, responsible_person_id = (
-            await self._validate_finding_responsibility(
-                audit.worksite_id,
-                affected_contractor_id=payload.affected_contractor_id,
-                responsible_contractor_id=payload.responsible_contractor_id,
-                responsible_person_id=payload.responsible_person_id,
-            )
+        (
+            responsible_contractor_id,
+            responsible_person_id,
+        ) = await self._validate_finding_responsibility(
+            audit.worksite_id,
+            affected_contractor_id=payload.affected_contractor_id,
+            responsible_contractor_id=payload.responsible_contractor_id,
+            responsible_person_id=payload.responsible_person_id,
         )
         finding = Finding(
             organization_id=PILOT_ORGANIZATION_ID,
@@ -747,9 +740,7 @@ class PilotService:
         subject = await self._document_subject_for_worksite(worksite_id, document.id)
         if subject is None:
             raise _not_found()
-        assignment = await self._require_current_function(
-            worksite_id, _DOCUMENT_REVIEW_FUNCTIONS
-        )
+        assignment = await self._require_current_function(worksite_id, _DOCUMENT_REVIEW_FUNCTIONS)
         subject_contractor_id = await self._subject_contractor_id(
             worksite_id, subject[0], subject[1]
         )
@@ -1201,13 +1192,14 @@ class PilotService:
                 await self._get_worksite_contractor_assignment(
                     audit.worksite_id, payload.affected_contractor_id
                 )
-            responsible_contractor_id, responsible_person_id = (
-                await self._validate_finding_responsibility(
-                    audit.worksite_id,
-                    affected_contractor_id=payload.affected_contractor_id,
-                    responsible_contractor_id=payload.responsible_contractor_id,
-                    responsible_person_id=payload.responsible_person_id,
-                )
+            (
+                responsible_contractor_id,
+                responsible_person_id,
+            ) = await self._validate_finding_responsibility(
+                audit.worksite_id,
+                affected_contractor_id=payload.affected_contractor_id,
+                responsible_contractor_id=payload.responsible_contractor_id,
+                responsible_person_id=payload.responsible_person_id,
             )
             finding = Finding(
                 organization_id=PILOT_ORGANIZATION_ID,
@@ -1518,10 +1510,9 @@ class PilotService:
                 status=403,
                 code="pilot_contractor_scope_denied",
                 title="Alcance de contratista insuficiente",
-                    detail=(
-                        "La operación debe indicar una empresa representada dentro "
-                        "del alcance vigente."
-                    ),
+                detail=(
+                    "La operación debe indicar una empresa representada dentro del alcance vigente."
+                ),
             )
         if not targets.issubset(scope_ids):
             raise ProblemException(
@@ -1772,8 +1763,7 @@ class PilotService:
             )
             if (
                 function_code in _PRINCIPAL_CONTRACTOR_FUNCTIONS
-                and participant.participation_type
-                != ContractorParticipationType.PRINCIPAL.value
+                and participant.participation_type != ContractorParticipationType.PRINCIPAL.value
             ):
                 raise _unprocessable(
                     "principal_contractor_required",
@@ -1864,8 +1854,7 @@ class PilotService:
                 code="pilot_read_only_organization_account",
                 title="Cuenta organizacional de solo lectura",
                 detail=(
-                    "La cuenta organizacional puede consultar la obra, pero no "
-                    "configurar actores."
+                    "La cuenta organizacional puede consultar la obra, pero no configurar actores."
                 ),
             )
         await self._require_current_function(worksite_id, _ALL_FUNCTIONS)
@@ -3064,9 +3053,7 @@ class PilotService:
             }
         )
 
-    async def _worksite_stage_view_with_history(
-        self, stage: WorksiteStage
-    ) -> WorksiteStageView:
+    async def _worksite_stage_view_with_history(self, stage: WorksiteStage) -> WorksiteStageView:
         events = await self.session.scalars(
             select(WorksiteStageEvent)
             .where(

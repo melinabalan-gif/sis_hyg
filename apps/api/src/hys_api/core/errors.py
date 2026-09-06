@@ -140,20 +140,27 @@ def _user_validation_message(error: dict[str, Any]) -> str:
 
     message = str(error.get("msg", "El valor no es válido."))
     replacements = {
-        "jurisdiction o country, province y municipality son obligatorios":
-            "Completá país, provincia y municipio.",
-        "ended_on debe ser posterior a started_on":
-            "La fecha de fin debe ser posterior a la fecha de inicio.",
-        "valid_to debe ser posterior a valid_from":
-            "La fecha de fin de vigencia debe ser posterior a la fecha de inicio.",
-        "expires_on no puede ser anterior a valid_from":
-            "La fecha de vencimiento no puede ser anterior a la fecha de inicio.",
-        "reason es obligatorio para NO_APLICA y NO_VERIFICADO":
-            "Indicá un motivo cuando el resultado sea No aplica o No verificado.",
-        "severity_code y finding_description son obligatorios para NO_CUMPLE":
-            "Indicá la severidad y la descripción del desvío cuando el resultado sea No cumple.",
-        "severity_code y finding_description sólo se permiten para NO_CUMPLE":
-            "La severidad y la descripción sólo corresponden a un resultado No cumple.",
+        "jurisdiction o country, province y municipality son obligatorios": (
+            "Completá país, provincia y municipio."
+        ),
+        "ended_on debe ser posterior a started_on": (
+            "La fecha de fin debe ser posterior a la fecha de inicio."
+        ),
+        "valid_to debe ser posterior a valid_from": (
+            "La fecha de fin de vigencia debe ser posterior a la fecha de inicio."
+        ),
+        "expires_on no puede ser anterior a valid_from": (
+            "La fecha de vencimiento no puede ser anterior a la fecha de inicio."
+        ),
+        "reason es obligatorio para NO_APLICA y NO_VERIFICADO": (
+            "Indicá un motivo cuando el resultado sea No aplica o No verificado."
+        ),
+        "severity_code y finding_description son obligatorios para NO_CUMPLE": (
+            "Indicá la severidad y la descripción del desvío cuando el resultado sea No cumple."
+        ),
+        "severity_code y finding_description sólo se permiten para NO_CUMPLE": (
+            "La severidad y la descripción sólo corresponden a un resultado No cumple."
+        ),
     }
     return replacements.get(message, message)
 
