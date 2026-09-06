@@ -657,10 +657,25 @@ class WorksiteFunctionalAssignmentCreate(StrictSchema):
         return self
 
 
+class WorksiteFunctionalAssignmentChange(StrictSchema):
+    """Replacement data; the existing function and company remain immutable."""
+
+    actor_id: UUID
+    person_id: UUID
+    delegated_by_assignment_id: UUID | None = None
+    valid_from: date | None = None
+
+
+class WorksiteFunctionalAssignmentFinish(StrictSchema):
+    valid_to: date | None = None
+
+
 class WorksiteFunctionalAssignmentView(StrictSchema):
     id: UUID
     worksite_id: UUID
     actor_id: UUID
+    assigned_by_actor_id: UUID | None = None
+    assigned_by_label: str | None = None
     actor_key: str
     actor_label: str
     person_id: UUID | None

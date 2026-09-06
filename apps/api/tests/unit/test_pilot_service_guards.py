@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -26,6 +26,9 @@ from hys_api.modules.pilot.schemas import (
     MachineInspectionCreate,
     VerificationCreate,
     VerificationDecision,
+    WorksiteCreate,
+    WorksiteFunctionalAssignmentChange,
+    WorksiteFunctionalAssignmentFinish,
     WorksiteStageCreate,
 )
 from hys_api.modules.pilot.service import PilotService
@@ -74,6 +77,140 @@ def test_legacy_compatibility_selector_maps_to_contractor_responsible_function()
     )
 
     assert suplente.function_code == "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("actor_key", "allowed"),
+    [
+        ("tecnico", False),
+        ("auditor", False),
+        ("responsable", True),
+        ("licenciado-contratista-principal", True),
+        ("contratista-principal", True),
+    ],
+)
+async def test_worksite_creation_is_restricted_to_the_three_authorized_profiles(
+    actor_key: str, allowed: bool
+) -> None:
+    service, session = _service(actor_key)
+
+    if allowed:
+        service._require_worksite_create()
+        return
+
+    with pytest.raises(ProblemException) as raised:
+        await service.create_worksite(
+            WorksiteCreate(
+                code="SYN-OBRA-AUTH",
+                name="Obra sintética",
+                country="Argentina",
+                province="Provincia sintética",
+                municipality="Municipio sintético",
+            )
+        )
+
+    assert raised.value.status == 403
+    assert raised.value.code == "pilot_worksite_create_required"
+    session.add.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "actor_key",
+    ["tecnico", "auditor", "licenciado-contratista-principal"],
+)
+def test_only_project_responsible_and_principal_contractor_administer_assignments(
+    actor_key: str,
+) -> None:
+    service, session = _service(actor_key)
+
+    with pytest.raises(ProblemException) as raised:
+        service._require_assignment_admin()
+
+    assert raised.value.status == 403
+    assert raised.value.code == "pilot_assignment_admin_required"
+    session.scalar.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_changing_assignment_closes_old_row_and_appends_replacement() -> None:
+    service, session = _service("responsable")
+    worksite = Worksite(
+        id=uuid4(),
+        organization_id=PILOT_ORGANIZATION_ID,
+        code="SYN-OBRA-RESPONSABLES",
+        name="Obra sintética",
+        jurisdiction="Provincia sintética",
+        status="ACTIVE",
+    )
+    current = WorksiteFunctionalAssignment(
+        id=uuid4(),
+        organization_id=PILOT_ORGANIZATION_ID,
+        worksite_id=worksite.id,
+        actor_id=PILOT_ACTORS["responsable"].id,
+        person_id=uuid4(),
+        function_code="RESPONSABLE_HYS_PROYECTO",
+        permission_scope="WORKSITE",
+        valid_from=date(2026, 9, 1),
+        version=1,
+    )
+    replacement = MagicMock()
+    service._get_active_worksite_for_assignment_admin = AsyncMock(return_value=worksite)  # type: ignore[method-assign]
+    session.scalar.return_value = current
+    service.create_functional_assignment = AsyncMock(return_value=replacement)  # type: ignore[method-assign]
+
+    result = await service.change_functional_assignment(
+        worksite.id,
+        current.id,
+        WorksiteFunctionalAssignmentChange(
+            actor_id=PILOT_ACTORS["responsable"].id,
+            person_id=uuid4(),
+            valid_from=date(2026, 9, 5),
+        ),
+    )
+
+    assert result is replacement
+    assert current.valid_to == date(2026, 9, 5)
+    assert current.version == 2
+    created = service.create_functional_assignment.await_args.args[1]
+    assert created.function_code.value == "RESPONSABLE_HYS_PROYECTO"
+    assert created.valid_from == date(2026, 9, 5)
+
+
+@pytest.mark.asyncio
+async def test_finishing_assignment_preserves_row_and_sets_end_date() -> None:
+    service, session = _service("contratista-principal")
+    worksite = Worksite(
+        id=uuid4(),
+        organization_id=PILOT_ORGANIZATION_ID,
+        code="SYN-OBRA-FINALIZAR",
+        name="Obra sintética",
+        jurisdiction="Provincia sintética",
+        status="ACTIVE",
+    )
+    assignment = WorksiteFunctionalAssignment(
+        id=uuid4(),
+        organization_id=PILOT_ORGANIZATION_ID,
+        worksite_id=worksite.id,
+        actor_id=PILOT_ACTORS["responsable"].id,
+        person_id=uuid4(),
+        function_code="RESPONSABLE_HYS_PROYECTO",
+        permission_scope="WORKSITE",
+        valid_from=date(2026, 9, 1),
+        version=1,
+    )
+    service._get_active_worksite_for_assignment_admin = AsyncMock(return_value=worksite)  # type: ignore[method-assign]
+    session.scalar.side_effect = [assignment, None, None]
+
+    result = await service.finish_functional_assignment(
+        worksite.id,
+        assignment.id,
+        WorksiteFunctionalAssignmentFinish(valid_to=date(2026, 9, 5)),
+    )
+
+    assert result.valid_to == date(2026, 9, 5)
+    assert assignment.valid_to == date(2026, 9, 5)
+    assert assignment.version == 2
 
 
 def _audit(*, editor_id: UUID, status: str) -> Audit:

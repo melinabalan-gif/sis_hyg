@@ -442,6 +442,7 @@ class WorksiteFunctionalAssignment(Base):
     organization_id: Mapped[UUID] = mapped_column(nullable=False)
     worksite_id: Mapped[UUID] = mapped_column(nullable=False)
     actor_id: Mapped[UUID] = mapped_column(nullable=False)
+    assigned_by_actor_id: Mapped[UUID | None] = mapped_column()
     person_id: Mapped[UUID | None] = mapped_column()
     function_code: Mapped[str] = mapped_column(String(64), nullable=False)
     represented_contractor_id: Mapped[UUID | None] = mapped_column()

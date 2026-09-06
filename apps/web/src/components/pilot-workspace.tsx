@@ -30,7 +30,7 @@ import {
 
 const STEPS = [
   ["overview", "Resumen"],
-  ["actors", "Actores"],
+  ["actors", "RESPONSABLES"],
   ["stages", "Etapas"],
   ["contractors", "Contratistas"],
   ["people", "Personal"],
@@ -146,6 +146,12 @@ const FUNCTION_LABELS: Record<string, string> = {
   TECNICO_HYS_CONTRATISTA: "Técnico H&S de contratista",
 };
 
+const WORKSITE_CREATOR_ACTORS: readonly PilotActor[] = [
+  "responsable",
+  "licenciado-contratista-principal",
+  "contratista-principal",
+];
+
 function checklistLabel(key: string): string {
   return CHECKLIST_LABELS[key] ?? pilotLabel(key);
 }
@@ -217,7 +223,9 @@ export function PilotWorkspace() {
   const role = actorRole(actor);
   const actorDefinition = PILOT_ACTORS.find((item) => item.value === actor);
   const canManageResources = role === "TECNICO" || role === "RESPONSABLE_HYS";
-  const canManageAssignments = canManageResources;
+  const canCreateWorksite = WORKSITE_CREATOR_ACTORS.includes(actor);
+  const canManageAssignments =
+    actor === "responsable" || actor === "contratista-principal";
   const canManageAudit = Boolean(
     detail?.functional_assignments?.some(
       (assignment) =>
@@ -453,7 +461,9 @@ export function PilotWorkspace() {
           ) : null}
           {!loading && worksites.length === 0 ? (
             <EmptyState>
-              Creá la primera obra sintética para iniciar el recorrido.
+              {canCreateWorksite
+                ? "Creá la primera obra sintética para iniciar el recorrido."
+                : "No hay obras disponibles para abrir con este perfil."}
             </EmptyState>
           ) : null}
           {worksites.map((worksite) => (
@@ -470,19 +480,21 @@ export function PilotWorkspace() {
           ))}
         </div>
 
-        <button
-          className="button button--primary"
-          onClick={() => {
-            setSelectedId(null);
-            setSelectedAuditId(null);
-            setDetail(null);
-            setError(null);
-            setNotice(null);
-          }}
-          type="button"
-        >
-          Nueva obra
-        </button>
+        {canCreateWorksite ? (
+          <button
+            className="button button--primary"
+            onClick={() => {
+              setSelectedId(null);
+              setSelectedAuditId(null);
+              setDetail(null);
+              setError(null);
+              setNotice(null);
+            }}
+            type="button"
+          >
+            Nueva obra
+          </button>
+        ) : null}
       </aside>
 
       <section className="workspace" aria-label="Espacio de trabajo de la obra">
@@ -514,34 +526,9 @@ export function PilotWorkspace() {
               ))}
             </select>
           </label>
-          <div className="actor-context" aria-label="Contexto de asignación">
+          <div className="actor-context" aria-label="Perfil activo">
             <strong>{actorDefinition?.label}</strong>
-            <span>
-              Profesión:{" "}
-              {actorDefinition?.value === "contratista-principal"
-                ? "Contratista"
-                : actorDefinition?.role === "RESPONSABLE_HYS"
-                  ? "Licenciado H&S"
-                  : "Técnico H&S"}
-            </span>
-            <span>
-              Empresa representada:{" "}
-              {actorDefinition?.role === "TECNICO" ||
-              actorDefinition?.value.includes("contratista")
-                ? actorDefinition.value === "tecnico" ||
-                  actorDefinition.value === "licenciado-contratista-principal"
-                  ? "Contratista principal"
-                  : "Empresa contratista asignada"
-                : actorDefinition?.role === "CONTRATISTA"
-                  ? "Cuenta organizacional"
-                  : "Proyecto / obra"}
-            </span>
-            <span>
-              Alcance:{" "}
-              {actorDefinition?.role === "CONTRATISTA"
-                ? "lectura organizacional"
-                : "obra seleccionada"}
-            </span>
+            <span>Perfil operativo del piloto</span>
           </div>
         </header>
 
@@ -560,80 +547,83 @@ export function PilotWorkspace() {
           <section className="welcome-panel">
             <span className="welcome-panel__number">01</span>
             <p className="kicker">Punto de partida</p>
-            <h1>Creá o abrí una obra</h1>
+            <h1>
+              {canCreateWorksite
+                ? "Creá o abrí una obra"
+                : "Abrí una obra existente"}
+            </h1>
             <p>
-              Desde acá vas a recorrer contratistas, personal, vencimientos,
-              maquinarias, auditoría y cierre independiente del desvío con datos
-              persistentes.
+              {canCreateWorksite
+                ? "Desde acá vas a recorrer contratistas, personal, vencimientos, maquinarias, auditoría y cierre independiente del desvío con datos persistentes."
+                : "Seleccioná una obra existente para continuar el recorrido operativo con datos persistentes."}
             </p>
-            <ol className="flow-preview">
-              <li>Preparar el legajo</li>
-              <li>Ejecutar el control</li>
-              <li>Corregir y verificar</li>
-            </ol>
-            <Card className="new-worksite-card">
-              <h2>Alta inicial</h2>
-              <p className="muted">
-                La obra comienza sin actores heredados. Después podrás
-                configurar responsables, contratistas y etapas.
-              </p>
-              <form
-                className="form-grid form-grid--wide"
-                onSubmit={(event) => void createWorksite(event)}
-              >
-                <Field label="Código">
-                  <input
-                    name="code"
-                    placeholder="OBRA-001"
-                    required
-                    maxLength={64}
-                  />
-                </Field>
-                <Field label="Nombre">
-                  <input
-                    name="name"
-                    placeholder="Ampliación planta piloto"
-                    required
-                    maxLength={200}
-                  />
-                </Field>
-                <Field label="País">
-                  <input
-                    name="country"
-                    placeholder="Argentina"
-                    required
-                    maxLength={120}
-                  />
-                </Field>
-                <Field label="Provincia">
-                  <input
-                    name="province"
-                    placeholder="Provincia sintética"
-                    required
-                    maxLength={120}
-                  />
-                </Field>
-                <Field label="Municipio">
-                  <input
-                    name="municipality"
-                    placeholder="Municipio sintético"
-                    required
-                    maxLength={120}
-                  />
-                </Field>
-                <button
-                  className="button button--primary form-action"
-                  disabled={busy !== null || !canManageResources}
-                >
-                  {busy === "worksite" ? "Creando…" : "Crear y abrir"}
-                </button>
-                {!canManageResources ? (
-                  <small className="permission-note">
-                    Usá Técnico o Responsable H&amp;S para crear obras.
-                  </small>
-                ) : null}
-              </form>
-            </Card>
+            {canCreateWorksite ? (
+              <>
+                <ol className="flow-preview">
+                  <li>Preparar el legajo</li>
+                  <li>Ejecutar el control</li>
+                  <li>Corregir y verificar</li>
+                </ol>
+                <Card className="new-worksite-card">
+                  <h2>Alta inicial</h2>
+                  <p className="muted">
+                    La obra comienza sin actores heredados. Después podrás
+                    configurar responsables, contratistas y etapas.
+                  </p>
+                  <form
+                    className="form-grid form-grid--wide"
+                    onSubmit={(event) => void createWorksite(event)}
+                  >
+                    <Field label="Código">
+                      <input
+                        name="code"
+                        placeholder="OBRA-001"
+                        required
+                        maxLength={64}
+                      />
+                    </Field>
+                    <Field label="Nombre">
+                      <input
+                        name="name"
+                        placeholder="Ampliación planta piloto"
+                        required
+                        maxLength={200}
+                      />
+                    </Field>
+                    <Field label="País">
+                      <input
+                        name="country"
+                        placeholder="Argentina"
+                        required
+                        maxLength={120}
+                      />
+                    </Field>
+                    <Field label="Provincia">
+                      <input
+                        name="province"
+                        placeholder="Provincia sintética"
+                        required
+                        maxLength={120}
+                      />
+                    </Field>
+                    <Field label="Municipio">
+                      <input
+                        name="municipality"
+                        placeholder="Municipio sintético"
+                        required
+                        maxLength={120}
+                      />
+                    </Field>
+                    <button
+                      className="button button--primary form-action"
+                      disabled={busy !== null}
+                    >
+                      {busy === "worksite" ? "Creando…" : "Crear y abrir"}
+                    </button>
+                  </form>
+                </Card>
+              </>
+            ) : null}
           </section>
         ) : (
           <>
@@ -695,28 +685,85 @@ export function PilotWorkspace() {
                 />
               ) : null}
               {step === "actors" ? (
-                <ActorsStep
+                <ResponsablesStep
                   detail={detail}
                   busy={busy}
                   canManage={canManageAssignments}
-                  onSubmit={(event) =>
+                  onAssign={(event, functionCode, currentId) => {
+                    const path = currentId
+                      ? `/worksites/${detail.id}/functional-assignments/${currentId}/change`
+                      : `/worksites/${detail.id}/functional-assignments`;
                     void submitForm(
                       event,
-                      "functional-assignment",
-                      `/worksites/${detail.id}/functional-assignments`,
-                      (form) => ({
-                        actor_id: fieldValue(form, "actor_id"),
-                        person_id: fieldValue(form, "person_id"),
-                        function_code: fieldValue(form, "function_code"),
-                        represented_contractor_id: optionalField(
-                          form,
-                          "represented_contractor_id",
-                        ),
-                        valid_from: optionalField(form, "valid_from"),
-                      }),
-                      "Actor asignado explícitamente a la obra.",
-                    )
-                  }
+                      `functional-assignment-${functionCode}`,
+                      path,
+                      (form) => {
+                        const personId = fieldValue(form, "person_id");
+                        const person = detail.people.find(
+                          (item) => item.id === personId,
+                        );
+                        const actorId =
+                          functionCode === "AUDITOR"
+                            ? person?.profession_code === "TECNICO_HYS"
+                              ? PILOT_ACTORS.find(
+                                  (item) => item.value === "auditor",
+                                )?.id
+                              : PILOT_ACTORS.find(
+                                  (item) => item.value === "responsable",
+                                )?.id
+                            : functionCode === "RESPONSABLE_HYS_PROYECTO"
+                              ? PILOT_ACTORS.find(
+                                  (item) => item.value === "responsable",
+                                )?.id
+                              : functionCode ===
+                                  "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
+                                ? PILOT_ACTORS.find(
+                                    (item) =>
+                                      item.value ===
+                                      "licenciado-contratista-principal",
+                                  )?.id
+                                : PILOT_ACTORS.find(
+                                    (item) => item.value === "tecnico",
+                                  )?.id;
+                        const payload: Record<string, unknown> = {
+                          actor_id: actorId,
+                          person_id: personId,
+                        };
+                        if (!currentId) {
+                          payload.function_code = functionCode;
+                          if (
+                            functionCode ===
+                              "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL" ||
+                            functionCode === "TECNICO_HYS_CONTRATISTA_PRINCIPAL"
+                          ) {
+                            payload.represented_contractor_id =
+                              detail.contractors.find(
+                                (item) =>
+                                  item.participation_type === "PRINCIPAL",
+                              )?.id;
+                          }
+                        }
+                        if (functionCode === "AUDITOR") {
+                          payload.delegated_by_assignment_id = optionalField(
+                            form,
+                            "delegated_by_assignment_id",
+                          );
+                        }
+                        return payload;
+                      },
+                      currentId
+                        ? "Responsable cambiado y asignación anterior conservada en el historial."
+                        : "Responsable asignado a la obra.",
+                    );
+                  }}
+                  onFinish={(assignmentId) => {
+                    void mutate(
+                      `functional-assignment-finish-${assignmentId}`,
+                      `/worksites/${detail.id}/functional-assignments/${assignmentId}/finish`,
+                      {},
+                      "Responsable finalizado y conservado en el historial.",
+                    );
+                  }}
                 />
               ) : null}
               {step === "stages" ? (
@@ -1274,35 +1321,6 @@ function Overview({
           ) : null}
         </ul>
       </Card>
-      <Card className="scope-card">
-        <div>
-          <StatusBadge value="ASIGNACIONES" />
-          <h3>Actores y funciones en esta obra</h3>
-          <p>
-            La profesión, la función operativa, la empresa representada y el
-            alcance se mantienen separados.
-          </p>
-        </div>
-        <ul className="record-list">
-          {(detail.functional_assignments ?? []).map((assignment) => (
-            <li key={assignment.id}>
-              <div>
-                <strong>{assignment.actor_label}</strong>
-                <span>
-                  {pilotLabel(assignment.function_code)} ·{" "}
-                  {pilotLabel(assignment.profession_code)}
-                </span>
-              </div>
-              <small>
-                {assignment.represented_contractor_name ?? "Proyecto / obra"} ·{" "}
-                {assignment.permission_scope === "ORGANIZATION"
-                  ? "Organización"
-                  : "Obra seleccionada"}
-              </small>
-            </li>
-          ))}
-        </ul>
-      </Card>
       <div className="dashboard-grid">
         <DashboardPanel
           eyebrow="01 · Legajo"
@@ -1428,124 +1446,314 @@ function Overview({
   );
 }
 
-function ActorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
+type ResponsibilityCode =
+  | "RESPONSABLE_HYS_PROYECTO"
+  | "AUDITOR"
+  | "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
+  | "TECNICO_HYS_CONTRATISTA_PRINCIPAL";
+
+const RESPONSIBILITIES: Array<{
+  code: ResponsibilityCode;
+  title: string;
+  action: string;
+  profession?: string;
+}> = [
+  {
+    code: "RESPONSABLE_HYS_PROYECTO",
+    title: "Responsable H&S del proyecto",
+    action: "Cambiar responsable",
+    profession: "LICENCIADO_HYS",
+  },
+  { code: "AUDITOR", title: "Auditor", action: "Cambiar auditor" },
+  {
+    code: "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+    title: "Responsable H&S de contratista principal",
+    action: "Cambiar responsable",
+    profession: "LICENCIADO_HYS",
+  },
+  {
+    code: "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+    title: "Técnico H&S de contratista principal",
+    action: "Cambiar técnico",
+    profession: "TECNICO_HYS",
+  },
+];
+
+function currentResponsibility(
+  assignments: NonNullable<WorksiteDetail["functional_assignments"]>,
+  code: ResponsibilityCode,
+) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  const today = `${part("year")}-${part("month")}-${part("day")}`;
+  const current = assignments.filter(
+    (assignment) =>
+      assignment.function_code === code &&
+      assignment.valid_from <= today &&
+      (!assignment.valid_to || assignment.valid_to > today),
+  );
+  return [...current].sort((left, right) => {
+    if (code === "AUDITOR") {
+      const delegatedDifference =
+        Number(Boolean(right.delegated_by_assignment_id)) -
+        Number(Boolean(left.delegated_by_assignment_id));
+      if (delegatedDifference) return delegatedDifference;
+    }
+    return (
+      right.valid_from.localeCompare(left.valid_from) ||
+      right.id.localeCompare(left.id)
+    );
+  })[0];
+}
+
+function ResponsablesStep({
+  detail,
+  busy,
+  canManage,
+  onAssign,
+  onFinish,
+}: {
+  detail: WorksiteDetail;
+  busy: string | null;
+  canManage: boolean;
+  onAssign: (
+    event: FormEvent<HTMLFormElement>,
+    code: ResponsibilityCode,
+    currentId?: string,
+  ) => void;
+  onFinish: (assignmentId: string) => void;
+}) {
+  const [editingCode, setEditingCode] = useState<ResponsibilityCode | null>(
+    null,
+  );
+  const [auditorProfession, setAuditorProfession] = useState("");
+  const assignments = detail.functional_assignments ?? [];
+  const principal = detail.contractors.find(
+    (item) => item.participation_type === "PRINCIPAL",
+  );
+  const projectResponsible = currentResponsibility(
+    assignments,
+    "RESPONSABLE_HYS_PROYECTO",
+  );
+  const eligiblePeople = (code: ResponsibilityCode) =>
+    detail.people.filter((person) => {
+      if (code === "RESPONSABLE_HYS_PROYECTO") {
+        return (
+          person.profession_code === "LICENCIADO_HYS" &&
+          person.contractor_id === null
+        );
+      }
+      if (code === "AUDITOR") {
+        return ["LICENCIADO_HYS", "TECNICO_HYS"].includes(
+          person.profession_code ?? "",
+        );
+      }
+      return (
+        person.contractor_id === principal?.id &&
+        person.profession_code ===
+          RESPONSIBILITIES.find((item) => item.code === code)?.profession
+      );
+    });
+
   return (
     <section>
       <StepHeading
-        eyebrow="02 · Alcance profesional"
-        title="Actores y funciones de esta obra"
-        text="Las asignaciones son explícitas: persona, función, empresa representada y alcance. Una obra nueva no hereda profesionales."
+        eyebrow="02 · Responsables"
+        title="Responsables de la obra"
+        text="Asigná las responsabilidades operativas sin exponer el modelo técnico de actores, funciones y alcances."
       />
-      <div className="two-column">
-        <Card>
-          <h3>Asignar actor profesional</h3>
-          <form className="form-grid" onSubmit={onSubmit}>
-            <Field label="Identidad sintética">
-              <select name="actor_id" required defaultValue="">
-                <option value="" disabled>
-                  Seleccionar identidad…
-                </option>
-                {PILOT_ACTORS.filter((item) => item.role !== "CONTRATISTA").map(
-                  (item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ),
-                )}
-              </select>
-            </Field>
-            <Field label="Persona profesional">
-              <select name="person_id" required defaultValue="">
-                <option value="" disabled>
-                  Seleccionar persona…
-                </option>
-                {detail.people
-                  .filter((item) =>
-                    ["LICENCIADO_HYS", "TECNICO_HYS"].includes(
-                      item.profession_code ?? "",
-                    ),
-                  )
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.display_name} · {pilotLabel(item.profession_code)}
-                    </option>
-                  ))}
-              </select>
-            </Field>
-            <Field label="Función en la obra">
-              <select name="function_code" required defaultValue="">
-                <option value="" disabled>
-                  Seleccionar función…
-                </option>
-                {Object.entries(FUNCTION_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Empresa representada">
-              <select name="represented_contractor_id" defaultValue="">
-                <option value="">Proyecto / obra</option>
-                {detail.contractors.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.legal_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Vigente desde (opcional)">
-              <input name="valid_from" type="date" />
-            </Field>
-            <button
-              className="button button--primary form-action"
-              disabled={busy !== null || !canManage || !detail.people.length}
-            >
-              Asignar función
-            </button>
-          </form>
-          {!detail.people.length ? (
-            <p className="permission-note">
-              Primero registrá la persona profesional en Personal.
-            </p>
-          ) : null}
-          {!canManage ? (
-            <PermissionCopy text="Cambiá a Técnico o Responsable H&S para configurar actores." />
-          ) : null}
-        </Card>
-        <Card>
-          <ListHeading count={detail.functional_assignments?.length ?? 0}>
-            Asignaciones vigentes e históricas
-          </ListHeading>
-          {detail.functional_assignments?.length ? (
-            <ul className="record-list">
-              {detail.functional_assignments.map((assignment) => (
-                <li key={assignment.id}>
-                  <div>
-                    <strong>
-                      {assignment.person_name ?? assignment.actor_label}
-                    </strong>
-                    <span>
-                      {FUNCTION_LABELS[assignment.function_code] ??
-                        pilotLabel(assignment.function_code)}
-                    </span>
+      <div className="responsibility-grid">
+        {RESPONSIBILITIES.map((responsibility) => {
+          const current = currentResponsibility(
+            assignments,
+            responsibility.code,
+          );
+          const people = eligiblePeople(responsibility.code);
+          const isEditing = editingCode === responsibility.code;
+          const delegatingAssignment =
+            responsibility.code === "AUDITOR" ? projectResponsible : undefined;
+          const isAuditor = responsibility.code === "AUDITOR";
+          return (
+            <Card className="responsibility-card" key={responsibility.code}>
+              <div className="responsibility-card__heading">
+                <div>
+                  <p className="kicker">Responsabilidad</p>
+                  <h3>{responsibility.title}</h3>
+                </div>
+                <StatusBadge value={current ? "VIGENTE" : "PENDIENTE"} />
+              </div>
+              {current ? (
+                <div className="responsibility-card__person">
+                  <strong>{current.person_name ?? "Persona asignada"}</strong>
+                  <span>
+                    {pilotLabel(current.profession_code)}
+                    {current.represented_contractor_name
+                      ? ` · ${current.represented_contractor_name}`
+                      : ""}
+                  </span>
+                  <small>Desde {formatDate(current.valid_from)}</small>
+                  {isAuditor && current.delegated_by_assignment_id ? (
+                    <small>
+                      Delegado por:{" "}
+                      {assignments.find(
+                        (item) =>
+                          item.id === current.delegated_by_assignment_id,
+                      )?.person_name ?? "Licenciado H&S del proyecto"}
+                    </small>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="empty-state">Pendiente de asignar</p>
+              )}
+              {canManage ? (
+                <div className="responsibility-card__actions">
+                  {!isEditing ? (
+                    <button
+                      className="button button--primary"
+                      onClick={() => setEditingCode(responsibility.code)}
+                      type="button"
+                    >
+                      {current ? responsibility.action : "Asignar"}
+                    </button>
+                  ) : null}
+                  {current ? (
+                    <button
+                      className="button button--quiet"
+                      disabled={busy !== null}
+                      onClick={() => onFinish(current.id)}
+                      type="button"
+                    >
+                      Finalizar
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {isEditing ? (
+                <form
+                  className="responsibility-form"
+                  onSubmit={(event) =>
+                    onAssign(event, responsibility.code, current?.id)
+                  }
+                >
+                  <Field label={isAuditor ? "Persona auditora" : "Profesional"}>
+                    <select
+                      defaultValue=""
+                      name="person_id"
+                      onChange={(event) => {
+                        if (isAuditor) {
+                          setAuditorProfession(
+                            people.find(
+                              (person) => person.id === event.target.value,
+                            )?.profession_code ?? "",
+                          );
+                        }
+                      }}
+                      required
+                    >
+                      <option disabled value="">
+                        Seleccionar persona…
+                      </option>
+                      {people.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.display_name} ·{" "}
+                          {pilotLabel(person.profession_code)}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {isAuditor ? (
+                    <Field
+                      hint="Sólo es obligatorio cuando la persona auditora es Técnico H&S."
+                      label="Delegado por"
+                    >
+                      <select
+                        defaultValue=""
+                        name="delegated_by_assignment_id"
+                        required={auditorProfession === "TECNICO_HYS"}
+                      >
+                        <option value="">No requiere delegación</option>
+                        {delegatingAssignment ? (
+                          <option value={delegatingAssignment.id}>
+                            {delegatingAssignment.person_name ??
+                              "Licenciado H&S del proyecto"}
+                          </option>
+                        ) : null}
+                      </select>
+                    </Field>
+                  ) : null}
+                  <div className="responsibility-card__actions">
+                    <button
+                      className="button button--primary"
+                      disabled={busy !== null || !people.length}
+                    >
+                      {current ? "Confirmar cambio" : "Asignar"}
+                    </button>
+                    <button
+                      className="button button--quiet"
+                      onClick={() => setEditingCode(null)}
+                      type="button"
+                    >
+                      Cancelar
+                    </button>
                   </div>
+                  {!people.length ? (
+                    <small className="permission-note">
+                      No hay profesionales compatibles asignados a la obra.
+                    </small>
+                  ) : null}
+                </form>
+              ) : null}
+            </Card>
+          );
+        })}
+      </div>
+      {!canManage ? (
+        <PermissionCopy text="Sólo el Contratista principal y el Licenciado H&S del proyecto pueden administrar responsables. Esta vista es de solo lectura." />
+      ) : null}
+      <Card className="responsibility-history">
+        <details>
+          <summary>Historial de responsables</summary>
+          {assignments.length ? (
+            <ul className="responsibility-history__list">
+              {assignments.map((assignment) => (
+                <li key={assignment.id}>
+                  <strong>
+                    {assignment.person_name ?? "Persona asignada"}
+                  </strong>
+                  <span>
+                    {FUNCTION_LABELS[assignment.function_code] ??
+                      "Responsabilidad H&S"}
+                  </span>
                   <small>
-                    {assignment.represented_contractor_name ??
-                      "Proyecto / obra"}{" "}
-                    ·{" "}
-                    {assignment.permission_scope === "ORGANIZATION"
-                      ? "Organización"
-                      : "Obra seleccionada"}
+                    Desde {formatDate(assignment.valid_from)} · Hasta{" "}
+                    {formatDate(assignment.valid_to)}
                   </small>
+                  {assignment.assigned_by_label ? (
+                    <small>Asignado por: {assignment.assigned_by_label}</small>
+                  ) : null}
+                  {assignment.delegated_by_assignment_id ? (
+                    <small>
+                      Delegado por:{" "}
+                      {assignments.find(
+                        (item) =>
+                          item.id === assignment.delegated_by_assignment_id,
+                      )?.person_name ?? "Licenciado H&S del proyecto"}
+                    </small>
+                  ) : null}
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyState>Todavía no hay actores asignados.</EmptyState>
+            <EmptyState>Todavía no hay responsables asignados.</EmptyState>
           )}
-        </Card>
-      </div>
+        </details>
+      </Card>
     </section>
   );
 }

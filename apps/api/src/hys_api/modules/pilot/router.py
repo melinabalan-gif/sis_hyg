@@ -33,7 +33,9 @@ from hys_api.modules.pilot.schemas import (
     VerificationCreate,
     WorksiteCreate,
     WorksiteDetail,
+    WorksiteFunctionalAssignmentChange,
     WorksiteFunctionalAssignmentCreate,
+    WorksiteFunctionalAssignmentFinish,
     WorksiteFunctionalAssignmentView,
     WorksiteStageCreate,
     WorksiteStageUpdate,
@@ -227,6 +229,38 @@ async def create_worksite_functional_assignment(
     service: PilotServiceDependency,
 ) -> WorksiteFunctionalAssignmentView:
     return await service.create_functional_assignment(worksite_id, payload)
+
+
+@router.post(
+    "/worksites/{worksite_id}/functional-assignments/{assignment_id}/change",
+    operation_id="pilot_change_worksite_functional_assignment",
+    response_model=WorksiteFunctionalAssignmentView,
+    responses=COMMON_ERRORS,
+)
+async def change_worksite_functional_assignment(
+    worksite_id: UUID,
+    assignment_id: UUID,
+    payload: WorksiteFunctionalAssignmentChange,
+    service: PilotServiceDependency,
+) -> WorksiteFunctionalAssignmentView:
+    return await service.change_functional_assignment(worksite_id, assignment_id, payload)
+
+
+@router.post(
+    "/worksites/{worksite_id}/functional-assignments/{assignment_id}/finish",
+    operation_id="pilot_finish_worksite_functional_assignment",
+    response_model=WorksiteFunctionalAssignmentView,
+    responses=COMMON_ERRORS,
+)
+async def finish_worksite_functional_assignment(
+    worksite_id: UUID,
+    assignment_id: UUID,
+    service: PilotServiceDependency,
+    payload: WorksiteFunctionalAssignmentFinish | None = None,
+) -> WorksiteFunctionalAssignmentView:
+    return await service.finish_functional_assignment(
+        worksite_id, assignment_id, payload or WorksiteFunctionalAssignmentFinish()
+    )
 
 
 @router.post(

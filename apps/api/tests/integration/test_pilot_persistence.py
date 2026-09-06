@@ -463,7 +463,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             ),
         )
         responsible_assignment = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_functional_assignment(
                 worksite.id,
                 WorksiteFunctionalAssignmentCreate(
@@ -475,7 +475,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
         )
         with pytest.raises(ProblemException) as missing_auditor_delegation:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -486,7 +486,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
                 ),
             )
         delegated_auditor = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_functional_assignment(
                 worksite.id,
                 WorksiteFunctionalAssignmentCreate(
@@ -499,7 +499,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
         )
         with pytest.raises(ProblemException) as auditor_represents_contractor:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -525,7 +525,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
         )
         with pytest.raises(ProblemException) as wrong_project_representation:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -538,7 +538,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             )
         with pytest.raises(ProblemException) as wrong_parent:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -582,7 +582,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
         )
         with pytest.raises(ProblemException) as wrong_profession:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -595,7 +595,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
 
         with pytest.raises(ProblemException) as wrong_worksite:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -608,7 +608,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             )
         with pytest.raises(ProblemException) as wrong_contractor:
             await run_as(
-                "tecnico",
+                "responsable",
                 lambda service: service.create_functional_assignment(
                     worksite.id,
                     WorksiteFunctionalAssignmentCreate(
@@ -1077,7 +1077,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         project_responsible_assignment = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_functional_assignment(
                 worksite.id,
                 WorksiteFunctionalAssignmentCreate(
@@ -1100,7 +1100,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_functional_assignment(
                 worksite.id,
                 WorksiteFunctionalAssignmentCreate(
@@ -1124,7 +1124,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_functional_assignment(
                 worksite.id,
                 WorksiteFunctionalAssignmentCreate(
@@ -1148,7 +1148,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_functional_assignment(
                 worksite.id,
                 WorksiteFunctionalAssignmentCreate(

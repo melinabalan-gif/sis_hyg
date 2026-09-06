@@ -73,11 +73,13 @@ from hys_api.modules.pilot.schemas import (
     FindingEventView,
     FindingTimeline,
     FindingView,
+    FunctionalAssignmentCode,
     MachineCreate,
     MachineInspectionCreate,
     MachineInspectionValidationCreate,
     MachineInspectionView,
     MachineView,
+    PermissionScope,
     PersonCreate,
     PersonVerificationCreate,
     PersonView,
@@ -88,7 +90,9 @@ from hys_api.modules.pilot.schemas import (
     VerificationView,
     WorksiteCreate,
     WorksiteDetail,
+    WorksiteFunctionalAssignmentChange,
     WorksiteFunctionalAssignmentCreate,
+    WorksiteFunctionalAssignmentFinish,
     WorksiteFunctionalAssignmentView,
     WorksiteStageCreate,
     WorksiteStageEventView,
@@ -116,6 +120,15 @@ _OTHER_CONTRACTOR_FUNCTIONS = frozenset({"RESPONSABLE_HYS_CONTRATISTA", "TECNICO
 _ALL_FUNCTIONS = _PROJECT_FUNCTIONS | _CONTRACTOR_FUNCTIONS
 _RESPONSIBLE_FUNCTIONS = frozenset(
     {"RESPONSABLE_HYS_PROYECTO", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"}
+)
+_ASSIGNMENT_ADMIN_ACTOR_KEYS = frozenset({"responsable", "contratista-principal"})
+_WORKSITE_CREATOR_ACTOR_KEYS = frozenset(
+    {
+        "responsable",
+        "responsable-suplente",
+        "licenciado-contratista-principal",
+        "contratista-principal",
+    }
 )
 _CONTRACTOR_ACTOR_KEYS = frozenset(
     {
@@ -220,14 +233,7 @@ class PilotService:
         return [self._worksite_summary(row) for row in rows]
 
     async def create_worksite(self, payload: WorksiteCreate) -> WorksiteSummary:
-        self._require_resource_write()
-        if self.context.actor.key in {"responsable-suplente", "licenciado-contratista-principal"}:
-            raise ProblemException(
-                status=403,
-                code="pilot_project_delegation_required",
-                title="Delegación de proyecto requerida",
-                detail="El Licenciado H&S de una contratista no puede crear obras.",
-            )
+        self._require_worksite_create()
         worksite = Worksite(
             organization_id=PILOT_ORGANIZATION_ID,
             code=payload.code,
@@ -1416,6 +1422,41 @@ class PilotService:
             PilotRole.RESPONSABLE_HYS,
         )
 
+    def _require_worksite_create(self) -> None:
+        if self.context.actor.key not in _WORKSITE_CREATOR_ACTOR_KEYS:
+            raise ProblemException(
+                status=403,
+                code="pilot_worksite_create_required",
+                title="Acceso denegado",
+                detail=(
+                    "Sólo el Licenciado H&S del proyecto, el Licenciado H&S de "
+                    "contratista principal o el Contratista principal pueden crear obras."
+                ),
+            )
+
+    def _require_assignment_admin(self) -> None:
+        if self.context.actor.key not in _ASSIGNMENT_ADMIN_ACTOR_KEYS:
+            raise ProblemException(
+                status=403,
+                code="pilot_assignment_admin_required",
+                title="Acceso denegado",
+                detail=(
+                    "Sólo el Contratista principal o el Licenciado H&S del proyecto "
+                    "pueden administrar responsables."
+                ),
+            )
+
+    async def _get_active_worksite_for_assignment_admin(self, worksite_id: UUID) -> Worksite:
+        """Assignment administrators can bootstrap responsibility setup for a worksite."""
+
+        worksite = await self._get_worksite(worksite_id)
+        if worksite.status != "ACTIVE":
+            raise _conflict(
+                "worksite_archived",
+                "Una obra archivada no admite nuevas operaciones del piloto.",
+            )
+        return worksite
+
     def _require_correction_write(self) -> None:
         require_pilot_role(
             self.context.actor,
@@ -1655,8 +1696,8 @@ class PilotService:
         worksite_id: UUID,
         payload: WorksiteFunctionalAssignmentCreate,
     ) -> WorksiteFunctionalAssignmentView:
-        self._require_resource_write()
-        await self._require_worksite_setup_access(worksite_id)
+        self._require_assignment_admin()
+        await self._get_active_worksite_for_assignment_admin(worksite_id)
         if payload.actor_id not in {actor.id for actor in PILOT_ACTORS.values()}:
             raise _unprocessable(
                 "invalid_pilot_actor", "El actor debe pertenecer al adaptador sintético."
@@ -1847,6 +1888,7 @@ class PilotService:
             organization_id=PILOT_ORGANIZATION_ID,
             worksite_id=worksite_id,
             actor_id=payload.actor_id,
+            assigned_by_actor_id=self.context.actor.id,
             person_id=payload.person_id,
             function_code=payload.function_code.value,
             represented_contractor_id=payload.represented_contractor_id,
@@ -1863,10 +1905,107 @@ class PilotService:
         await self.session.refresh(assignment)
         return await self._functional_assignment_view(assignment)
 
+    async def change_functional_assignment(
+        self,
+        worksite_id: UUID,
+        assignment_id: UUID,
+        payload: WorksiteFunctionalAssignmentChange,
+    ) -> WorksiteFunctionalAssignmentView:
+        """Close the current row and append its replacement without losing history."""
+
+        self._require_assignment_admin()
+        await self._get_active_worksite_for_assignment_admin(worksite_id)
+        current = await self.session.scalar(
+            select(WorksiteFunctionalAssignment)
+            .where(
+                WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteFunctionalAssignment.worksite_id == worksite_id,
+                WorksiteFunctionalAssignment.id == assignment_id,
+            )
+            .with_for_update()
+        )
+        if current is None:
+            raise _not_found()
+        today = _today_in_argentina()
+        if current.valid_to is not None or current.valid_from > today:
+            raise _conflict(
+                "functional_assignment_not_current",
+                "Sólo se puede cambiar la asignación vigente.",
+            )
+        valid_from = payload.valid_from or today
+        if valid_from <= current.valid_from:
+            raise _unprocessable(
+                "invalid_functional_assignment_interval",
+                "La nueva vigencia debe comenzar después de la vigencia anterior.",
+            )
+
+        current.valid_to = valid_from
+        current.version += 1
+        await self._flush_or_conflict(
+            "functional_assignment_conflict",
+            "No se pudo cerrar la asignación anterior.",
+        )
+        replacement = WorksiteFunctionalAssignmentCreate(
+            actor_id=payload.actor_id,
+            person_id=payload.person_id,
+            function_code=FunctionalAssignmentCode(current.function_code),
+            represented_contractor_id=current.represented_contractor_id,
+            delegated_by_assignment_id=payload.delegated_by_assignment_id,
+            permission_scope=PermissionScope(current.permission_scope),
+            valid_from=valid_from,
+        )
+        return await self.create_functional_assignment(worksite_id, replacement)
+
+    async def finish_functional_assignment(
+        self,
+        worksite_id: UUID,
+        assignment_id: UUID,
+        payload: WorksiteFunctionalAssignmentFinish,
+    ) -> WorksiteFunctionalAssignmentView:
+        """Finish a current assignment in place; the row remains historical."""
+
+        self._require_assignment_admin()
+        await self._get_active_worksite_for_assignment_admin(worksite_id)
+        assignment = await self.session.scalar(
+            select(WorksiteFunctionalAssignment)
+            .where(
+                WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteFunctionalAssignment.worksite_id == worksite_id,
+                WorksiteFunctionalAssignment.id == assignment_id,
+            )
+            .with_for_update()
+        )
+        if assignment is None:
+            raise _not_found()
+        today = _today_in_argentina()
+        if assignment.valid_from > today:
+            raise _conflict(
+                "functional_assignment_not_current",
+                "Sólo se puede finalizar la asignación vigente.",
+            )
+        if assignment.valid_to is not None:
+            raise _conflict(
+                "functional_assignment_already_finished",
+                "La asignación ya fue finalizada.",
+            )
+        valid_to = payload.valid_to or _today_in_argentina()
+        if valid_to <= assignment.valid_from:
+            raise _unprocessable(
+                "invalid_functional_assignment_interval",
+                "La fecha de finalización debe ser posterior al inicio.",
+            )
+        assignment.valid_to = valid_to
+        assignment.version += 1
+        await self._flush_or_conflict(
+            "functional_assignment_conflict",
+            "No se pudo finalizar la asignación funcional.",
+        )
+        return await self._functional_assignment_view(assignment)
+
     async def list_functional_assignments(
         self, worksite_id: UUID
     ) -> list[WorksiteFunctionalAssignmentView]:
-        await self._require_worksite_setup_access(worksite_id, active=False)
+        await self._require_read_access(worksite_id)
         assignments = await self._functional_assignments_for_worksite(worksite_id)
         scope_ids = await self._contractor_scope_ids(worksite_id)
         if scope_ids:
@@ -2472,6 +2611,15 @@ class PilotService:
                 "id": assignment.id,
                 "worksite_id": assignment.worksite_id,
                 "actor_id": assignment.actor_id,
+                "assigned_by_actor_id": assignment.assigned_by_actor_id,
+                "assigned_by_label": next(
+                    (
+                        candidate.label
+                        for candidate in PILOT_ACTORS.values()
+                        if candidate.id == assignment.assigned_by_actor_id
+                    ),
+                    None,
+                ),
                 "actor_key": actor.key if actor else "legacy",
                 "actor_label": actor.label if actor else "Actor sintético legado",
                 "person_id": assignment.person_id,

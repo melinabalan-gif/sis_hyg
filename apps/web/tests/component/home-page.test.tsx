@@ -86,6 +86,56 @@ const detail = {
   metrics: emptyMetrics,
 };
 
+const responsibilityDetail = {
+  ...detail,
+  contractors: [
+    {
+      id: "12000000-0000-0000-0000-000000000001",
+      legal_name: "Contratista principal sintética",
+      trade: "Construcción",
+      participation_type: "PRINCIPAL",
+    },
+  ],
+  people: [
+    {
+      id: "13000000-0000-0000-0000-000000000001",
+      display_name: "Licenciada de proyecto",
+      contractor_id: null,
+      role_label: "Licenciada H&S",
+      profession_code: "LICENCIADO_HYS",
+    },
+    {
+      id: "13000000-0000-0000-0000-000000000002",
+      display_name: "Técnico auditor",
+      contractor_id: "12000000-0000-0000-0000-000000000001",
+      role_label: "Auditor",
+      profession_code: "TECNICO_HYS",
+    },
+  ],
+  functional_assignments: [
+    {
+      ...detail.functional_assignments[0],
+      id: "11000000-0000-0000-0000-000000000001",
+      person_id: "13000000-0000-0000-0000-000000000002",
+      person_name: "Técnico auditor",
+      delegated_by_assignment_id: "11000000-0000-0000-0000-000000000002",
+      assigned_by_label: "Licenciada de proyecto",
+    },
+    {
+      ...detail.functional_assignments[0],
+      id: "11000000-0000-0000-0000-000000000002",
+      actor_id: "00000000-0000-4000-8000-000000000003",
+      actor_key: "responsable",
+      actor_label: "Licenciado H&S del proyecto",
+      person_id: "13000000-0000-0000-0000-000000000001",
+      person_name: "Licenciada de proyecto",
+      profession_code: "LICENCIADO_HYS",
+      function_code: "RESPONSABLE_HYS_PROYECTO",
+      assigned_by_label: "Licenciada de proyecto",
+    },
+  ],
+};
+
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -109,22 +159,30 @@ describe("HomePage", () => {
     expect(screen.getByText(PROTOTYPE_NOTICE)).toBeVisible();
     expect(screen.getByRole("main")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 1, name: /creá o abrí una obra/i }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: /abrí una obra existente/i,
+      }),
     ).toBeVisible();
     expect(
-      await screen.findByText(/creá la primera obra sintética/i),
+      await screen.findByText(/no hay obras disponibles para abrir/i),
     ).toBeVisible();
     expect(screen.getByLabelText(/actuar como/i)).toHaveValue("tecnico");
   });
 
   it("expone sólo las identidades seleccionables del piloto", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse([])));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse([])),
+    );
 
     render(<HomePage />);
 
     const selector = await screen.findByLabelText(/actuar como/i);
     expect(
-      Array.from(selector.querySelectorAll("option")).map((option) => option.value),
+      Array.from(selector.querySelectorAll("option")).map(
+        (option) => option.value,
+      ),
     ).toEqual([
       "tecnico",
       "auditor",
@@ -134,6 +192,139 @@ describe("HomePage", () => {
     ]);
   });
 
+  it("muestra Nueva obra y Crear y abrir sólo a los tres perfiles autorizados", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse([])),
+    );
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    const selector = await screen.findByLabelText(/actuar como/i);
+
+    for (const actor of ["tecnico", "auditor"] as const) {
+      await user.selectOptions(selector, actor);
+      expect(
+        screen.queryByRole("button", { name: "Nueva obra" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /crear y abrir/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: /abrí una obra existente/i }),
+      ).toBeVisible();
+    }
+
+    for (const actor of [
+      "responsable",
+      "licenciado-contratista-principal",
+      "contratista-principal",
+    ] as const) {
+      await user.selectOptions(selector, actor);
+      expect(screen.getByRole("button", { name: "Nueva obra" })).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: /crear y abrir/i }),
+      ).toBeEnabled();
+      expect(
+        screen.getByRole("heading", { name: /creá o abrí una obra/i }),
+      ).toBeVisible();
+    }
+  });
+
+  it("muestra responsables y mantiene la pestaña en solo lectura para Técnico", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+        return jsonResponse(responsibilityDetail);
+      }
+      if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
+      throw new Error(`Ruta inesperada: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /obr-001/i }));
+    await user.click(
+      await screen.findByRole("tab", { name: /02.*responsables/i }),
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Responsables de la obra",
+      }),
+    ).toBeVisible();
+    expect(screen.getAllByText("Técnico auditor")[0]).toBeVisible();
+    expect(
+      screen.getAllByText("Delegado por: Licenciada de proyecto")[0],
+    ).toBeVisible();
+    expect(screen.queryByText("Identidad sintética")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cambiar auditor" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("abre un formulario específico y cambia un responsable sin formulario genérico", async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (
+          path.includes("/functional-assignments/") &&
+          path.endsWith("/change")
+        ) {
+          expect(init?.method).toBe("POST");
+          expect(JSON.parse(String(init?.body))).toMatchObject({
+            actor_id: "00000000-0000-4000-8000-000000000001",
+            person_id: "13000000-0000-0000-0000-000000000002",
+            delegated_by_assignment_id: "11000000-0000-0000-0000-000000000002",
+          });
+          return jsonResponse({}, 200);
+        }
+        if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+          return jsonResponse(responsibilityDetail);
+        }
+        if (path.endsWith("/api/v1/worksites")) {
+          return jsonResponse([worksite]);
+        }
+        throw new Error(`Ruta inesperada: ${path}`);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /obr-001/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/actuar como/i),
+      "responsable",
+    );
+    await user.click(
+      await screen.findByRole("tab", { name: /02.*responsables/i }),
+    );
+    await user.click(screen.getByRole("button", { name: "Cambiar auditor" }));
+
+    expect(screen.getByLabelText("Persona auditora")).toBeVisible();
+    expect(
+      screen.queryByLabelText("Función en la obra"),
+    ).not.toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByLabelText("Persona auditora"),
+      "13000000-0000-0000-0000-000000000002",
+    );
+    await user.selectOptions(
+      screen.getByLabelText(/Delegado por/),
+      "11000000-0000-0000-0000-000000000002",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar cambio" }));
+
+    expect(await screen.findByText(/responsable cambiado/i)).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/worksites/10000000-0000-4000-8000-000000000001/functional-assignments/11000000-0000-0000-0000-000000000001/change",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
   it("crea, abre y navega una obra persistida", async () => {
     let created = false;
     const fetchMock = vi.fn(
@@ -141,7 +332,9 @@ describe("HomePage", () => {
         const path = String(input);
         if (path.endsWith("/api/v1/worksites") && init?.method === "POST") {
           created = true;
-          expect(init.headers).toMatchObject({ "X-Pilot-Actor": "tecnico" });
+          expect(init.headers).toMatchObject({
+            "X-Pilot-Actor": "responsable",
+          });
           return jsonResponse(worksite, 201);
         }
         if (path.endsWith(`/api/v1/worksites/${worksite.id}`))
@@ -155,6 +348,10 @@ describe("HomePage", () => {
     const user = userEvent.setup();
 
     render(<HomePage />);
+    await user.selectOptions(
+      await screen.findByLabelText(/actuar como/i),
+      "responsable",
+    );
     await screen.findByText(/creá la primera obra sintética/i);
     await user.type(screen.getByLabelText("Código"), "OBR-001");
     await user.type(screen.getByLabelText("Nombre"), "Obra Piloto Norte");
@@ -283,6 +480,10 @@ describe("HomePage", () => {
     const user = userEvent.setup();
 
     render(<HomePage />);
+    await user.selectOptions(
+      await screen.findByLabelText(/actuar como/i),
+      "responsable",
+    );
     await screen.findByText(/creá la primera obra sintética/i);
     await user.type(screen.getByLabelText("Código"), "OBR-001");
     await user.type(screen.getByLabelText("Nombre"), "Duplicada");

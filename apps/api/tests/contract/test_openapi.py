@@ -27,6 +27,8 @@ def test_openapi_exposes_the_versioned_public_contract(app: FastAPI) -> None:
         "/api/v1/worksites/{worksite_id}/documents",
         "/api/v1/worksites/{worksite_id}/documents/{document_id}/versions",
         "/api/v1/worksites/{worksite_id}/functional-assignments",
+        "/api/v1/worksites/{worksite_id}/functional-assignments/{assignment_id}/change",
+        "/api/v1/worksites/{worksite_id}/functional-assignments/{assignment_id}/finish",
         "/api/v1/worksites/{worksite_id}/machines",
         "/api/v1/worksites/{worksite_id}/machines/{machine_id}/inspections",
         "/api/v1/worksites/{worksite_id}/people",

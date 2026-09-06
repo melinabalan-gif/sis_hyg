@@ -87,7 +87,7 @@ export interface Person {
   display_name: string;
   role_label: string;
   profession_code?: string;
-  contractor_id: Identifier;
+  contractor_id?: Identifier | null;
   contractor_name?: string;
   started_on?: string;
   ended_on?: string | null;
@@ -219,6 +219,8 @@ export interface FunctionalAssignment {
   id: Identifier;
   worksite_id: Identifier;
   actor_id: Identifier;
+  assigned_by_actor_id?: Identifier | null;
+  assigned_by_label?: string | null;
   actor_key: string;
   actor_label: string;
   person_id?: Identifier | null;

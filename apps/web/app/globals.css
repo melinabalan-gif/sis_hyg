@@ -526,6 +526,83 @@ p {
   gap: 18px;
 }
 
+.responsibility-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.responsibility-card {
+  display: grid;
+  gap: 16px;
+}
+
+.responsibility-card__heading,
+.responsibility-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.responsibility-card__heading h3 {
+  margin-bottom: 0;
+}
+
+.responsibility-card__person {
+  display: grid;
+  gap: 5px;
+  min-height: 76px;
+  padding: 14px;
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+}
+
+.responsibility-card__person span,
+.responsibility-card__person small {
+  color: var(--ink-500);
+  font-size: 0.76rem;
+}
+
+.responsibility-form {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.responsibility-history {
+  margin-top: 18px;
+}
+
+.responsibility-history summary {
+  color: var(--ink-700);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.responsibility-history__list {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.responsibility-history__list li {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+}
+
+.responsibility-history__list span,
+.responsibility-history__list small {
+  color: var(--ink-500);
+  font-size: 0.73rem;
+}
+
 .card-grid,
 .metric-grid {
   display: grid;
@@ -1547,6 +1624,7 @@ summary:focus-visible {
   }
 
   .two-column,
+  .responsibility-grid,
   .scope-card,
   .dashboard-grid {
     grid-template-columns: 1fr;
