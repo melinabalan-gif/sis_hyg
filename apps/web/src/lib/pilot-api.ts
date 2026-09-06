@@ -7,7 +7,7 @@ export const PILOT_ACTORS = [
   },
   {
     value: "auditor",
-    label: "Técnico auditor delegado del proyecto",
+    label: "Auditor",
     role: "AUDITOR",
     id: "00000000-0000-4000-8000-000000000001",
   },
@@ -22,18 +22,6 @@ export const PILOT_ACTORS = [
     label: "Licenciado H&S de contratista principal",
     role: "RESPONSABLE_HYS",
     id: "00000000-0000-4000-8000-000000000004",
-  },
-  {
-    value: "tecnico-contratista",
-    label: "Técnico H&S de contratista",
-    role: "TECNICO",
-    id: "00000000-0000-4000-8000-000000000006",
-  },
-  {
-    value: "licenciado-contratista",
-    label: "Licenciado H&S de contratista",
-    role: "RESPONSABLE_HYS",
-    id: "00000000-0000-4000-8000-000000000007",
   },
   {
     value: "contratista-principal",
@@ -239,6 +227,7 @@ export interface FunctionalAssignment {
   function_code: string;
   represented_contractor_id?: Identifier | null;
   represented_contractor_name?: string | null;
+  delegated_by_assignment_id?: Identifier | null;
   permission_scope: string;
   valid_from: string;
   valid_to?: string | null;
@@ -483,7 +472,7 @@ const PILOT_LABELS: Record<string, string> = {
   ACTIVA: "Activa",
   ACTIVO: "Activo",
   APROBADO: "Aprobado",
-  AUDITOR_DELEGADO_PROYECTO: "Técnico auditor delegado del proyecto",
+  AUDITOR: "Auditor",
   CERRADA: "Cerrada",
   CERRADO: "Cerrado",
   CON_OBSERVACIONES: "Con observaciones",

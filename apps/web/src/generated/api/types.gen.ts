@@ -709,9 +709,11 @@ export type FindingView = {
  */
 export type FunctionalAssignmentCode =
   | "RESPONSABLE_HYS_PROYECTO"
-  | "AUDITOR_DELEGADO_PROYECTO"
+  | "AUDITOR"
   | "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
-  | "TECNICO_HYS_CONTRATISTA_PRINCIPAL";
+  | "TECNICO_HYS_CONTRATISTA_PRINCIPAL"
+  | "RESPONSABLE_HYS_CONTRATISTA"
+  | "TECNICO_HYS_CONTRATISTA";
 
 /**
  * LatestAuditView
@@ -1317,6 +1319,10 @@ export type WorksiteFunctionalAssignmentCreate = {
    * Actor Id
    */
   actor_id: string;
+  /**
+   * Delegated By Assignment Id
+   */
+  delegated_by_assignment_id?: string | null;
   function_code: FunctionalAssignmentCode;
   permission_scope?: PermissionScope;
   /**
@@ -1353,6 +1359,10 @@ export type WorksiteFunctionalAssignmentView = {
    * Actor Label
    */
   actor_label: string;
+  /**
+   * Delegated By Assignment Id
+   */
+  delegated_by_assignment_id: string | null;
   function_code: FunctionalAssignmentCode;
   /**
    * Id

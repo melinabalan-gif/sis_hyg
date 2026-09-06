@@ -100,7 +100,7 @@ from hys_api.modules.pilot.schemas import (
 )
 from hys_api.modules.worksites.models import Worksite
 
-_PROJECT_FUNCTIONS = frozenset({"RESPONSABLE_HYS_PROYECTO", "AUDITOR_DELEGADO_PROYECTO"})
+_PROJECT_FUNCTIONS = frozenset({"RESPONSABLE_HYS_PROYECTO", "AUDITOR"})
 _CONTRACTOR_FUNCTIONS = frozenset(
     {
         "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
@@ -128,7 +128,7 @@ _CONTRACTOR_ACTOR_KEYS = frozenset(
 )
 _DOCUMENT_REVIEW_FUNCTIONS = frozenset(
     {
-        "AUDITOR_DELEGADO_PROYECTO",
+        "AUDITOR",
         "RESPONSABLE_HYS_PROYECTO",
         "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
     }
@@ -571,7 +571,7 @@ class PilotService:
         if assignment is None or person is None:
             raise _not_found()
         function_assignment = await self._require_current_function(
-            worksite_id, {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"}
+            worksite_id, {"AUDITOR", "RESPONSABLE_HYS_PROYECTO"}
         )
         verification = PersonVerification(
             organization_id=PILOT_ORGANIZATION_ID,
@@ -599,16 +599,13 @@ class PilotService:
     ) -> FindingView:
         """Create a finding directly; never create a silent personnel record."""
 
-        self._require_audit_write()
         audit = await self._get_audit(audit_id)
         if audit.status != "EN_CURSO":
             raise _conflict(
                 "audit_not_in_progress",
                 "Sólo se puede registrar una persona no registrada durante una auditoría en curso.",
             )
-        await self._require_current_function(
-            audit.worksite_id, {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"}
-        )
+        await self._require_current_function(audit.worksite_id, {"AUDITOR"})
         severity = await self._get_severity(payload.severity_code)
         if payload.affected_contractor_id is not None:
             await self._get_worksite_contractor_assignment(
@@ -1021,9 +1018,7 @@ class PilotService:
     ) -> MachineView:
         require_pilot_role(self.context.actor, PilotRole.AUDITOR, PilotRole.RESPONSABLE_HYS)
         await self._get_active_worksite(worksite_id)
-        await self._require_current_function(
-            worksite_id, {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"}
-        )
+        await self._require_current_function(worksite_id, {"AUDITOR", "RESPONSABLE_HYS_PROYECTO"})
         inspection = await self.session.scalar(
             select(MachineInspection).where(
                 MachineInspection.organization_id == PILOT_ORGANIZATION_ID,
@@ -1081,7 +1076,6 @@ class PilotService:
         worksite_id: UUID,
         payload: AuditStartCreate | None = None,
     ) -> AuditView:
-        self._require_audit_write()
         await self._get_active_worksite(worksite_id)
         auditor_assignment = await self._resolve_auditor_assignment(worksite_id, payload)
         professional_person_id = await self.session.scalar(
@@ -1145,7 +1139,6 @@ class PilotService:
         audit_id: UUID,
         payload: AuditControlCreate,
     ) -> AuditControlMutationResponse:
-        self._require_audit_write()
         audit = await self._get_audit(audit_id, for_update=True)
         await self._require_audit_editor(audit)
         if audit.status != "EN_CURSO":
@@ -1247,7 +1240,6 @@ class PilotService:
         return AuditControlMutationResponse(control=control_view, finding=finding_view)
 
     async def finalize_audit(self, audit_id: UUID) -> AuditView:
-        self._require_audit_write()
         audit = await self._get_audit(audit_id, for_update=True)
         await self._require_audit_editor(audit)
         if audit.status != "EN_CURSO":
@@ -1377,7 +1369,7 @@ class PilotService:
         await self._require_current_function(
             finding.worksite_id,
             {
-                "AUDITOR_DELEGADO_PROYECTO",
+                "AUDITOR",
                 "RESPONSABLE_HYS_PROYECTO",
                 "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
             },
@@ -1424,13 +1416,6 @@ class PilotService:
             PilotRole.RESPONSABLE_HYS,
         )
 
-    def _require_audit_write(self) -> None:
-        require_pilot_role(
-            self.context.actor,
-            PilotRole.AUDITOR,
-            PilotRole.RESPONSABLE_HYS,
-        )
-
     def _require_correction_write(self) -> None:
         require_pilot_role(
             self.context.actor,
@@ -1440,7 +1425,7 @@ class PilotService:
 
     def _actor_function_label(self) -> str:
         labels = {
-            "auditor": "Técnico auditor delegado del proyecto",
+            "auditor": "Auditor",
             "tecnico": "Técnico H&S de contratista principal",
             "responsable": "Licenciado H&S del proyecto",
             "responsable-suplente": "Licenciado H&S de contratista principal",
@@ -1549,18 +1534,24 @@ class PilotService:
                 title="Acceso denegado",
                 detail="Sólo el editor de la auditoría puede modificarla o finalizarla.",
             )
-        if audit.auditor_assignment_id is not None:
-            await self._require_current_function(
-                audit.worksite_id,
-                {"AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"},
-                assignment_id=audit.auditor_assignment_id,
+        if audit.auditor_assignment_id is None:
+            raise ProblemException(
+                status=403,
+                code="audit_assignment_required",
+                title="Acceso denegado",
+                detail="La auditoría no tiene una asignación AUDITOR vigente asociada.",
             )
+        await self._require_current_function(
+            audit.worksite_id,
+            {"AUDITOR"},
+            assignment_id=audit.auditor_assignment_id,
+        )
 
     def _add_compatibility_assignments(self, worksite_id: UUID) -> None:
         """Keep legacy selectors usable for an otherwise empty worksite only."""
 
         assignments = (
-            ("auditor", "AUDITOR_DELEGADO_PROYECTO"),
+            ("auditor", "AUDITOR"),
             ("tecnico", "TECNICO_HYS_CONTRATISTA_PRINCIPAL"),
             ("responsable", "RESPONSABLE_HYS_PROYECTO"),
             ("responsable-suplente", "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"),
@@ -1587,9 +1578,7 @@ class PilotService:
             WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
             WorksiteFunctionalAssignment.worksite_id == worksite_id,
             WorksiteFunctionalAssignment.actor_id == self.context.actor.id,
-            WorksiteFunctionalAssignment.function_code.in_(
-                ("AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO")
-            ),
+            WorksiteFunctionalAssignment.function_code == "AUDITOR",
             WorksiteFunctionalAssignment.valid_from <= today,
             or_(
                 WorksiteFunctionalAssignment.valid_to.is_(None),
@@ -1701,14 +1690,69 @@ class PilotService:
         )
         if person is None:
             raise _not_found()
-        expected_profession = (
-            "LICENCIADO_HYS" if function_code in _RESPONSIBLE_FUNCTIONS else "TECNICO_HYS"
-        )
-        if person.profession_code != expected_profession:
+        if function_code == "AUDITOR":
+            expected_professions = {"LICENCIADO_HYS", "TECNICO_HYS"}
+        else:
+            expected_professions = {
+                "LICENCIADO_HYS" if function_code in _RESPONSIBLE_FUNCTIONS else "TECNICO_HYS"
+            }
+        if person.profession_code not in expected_professions:
             raise _unprocessable(
                 "profession_function_mismatch",
                 "La profesión de la persona no coincide con la función funcional solicitada.",
             )
+
+        if function_code == "AUDITOR":
+            if person.profession_code == "TECNICO_HYS":
+                if payload.delegated_by_assignment_id is None:
+                    raise _unprocessable(
+                        "auditor_delegation_required",
+                        "Un técnico auditor debe indicar la asignación "
+                        "RESPONSABLE_HYS_PROYECTO que lo delega.",
+                    )
+                delegating_assignment = await self.session.scalar(
+                    select(WorksiteFunctionalAssignment).where(
+                        WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                        WorksiteFunctionalAssignment.worksite_id == worksite_id,
+                        WorksiteFunctionalAssignment.id == payload.delegated_by_assignment_id,
+                        WorksiteFunctionalAssignment.function_code == "RESPONSABLE_HYS_PROYECTO",
+                        WorksiteFunctionalAssignment.person_id.is_not(None),
+                        WorksiteFunctionalAssignment.represented_contractor_id.is_(None),
+                        WorksiteFunctionalAssignment.valid_from <= valid_from,
+                        or_(
+                            WorksiteFunctionalAssignment.valid_to.is_(None),
+                            WorksiteFunctionalAssignment.valid_to > valid_from,
+                        ),
+                    )
+                )
+                if delegating_assignment is None:
+                    raise _unprocessable(
+                        "invalid_auditor_delegation",
+                        "La delegación debe apuntar a una asignación "
+                        "RESPONSABLE_HYS_PROYECTO vigente de la misma obra.",
+                    )
+                delegating_person = await self.session.scalar(
+                    select(Person).where(
+                        Person.organization_id == PILOT_ORGANIZATION_ID,
+                        Person.id == delegating_assignment.person_id,
+                    )
+                )
+                if (
+                    delegating_person is None
+                    or delegating_person.profession_code != "LICENCIADO_HYS"
+                ):
+                    raise _unprocessable(
+                        "invalid_auditor_delegation",
+                        "La delegación debe provenir de un Licenciado H&S "
+                        "responsable del proyecto.",
+                    )
+            elif payload.delegated_by_assignment_id is not None:
+                raise _unprocessable(
+                    "auditor_delegation_not_allowed",
+                    "La delegación no corresponde a un Auditor Licenciado H&S.",
+                )
+
+        expected_profession = person.profession_code
 
         actor = next(
             candidate for candidate in PILOT_ACTORS.values() if candidate.id == payload.actor_id
@@ -1721,7 +1765,9 @@ class PilotService:
 
         if function_code in _PROJECT_FUNCTIONS:
             expected_actor_key = (
-                "auditor" if function_code == "AUDITOR_DELEGADO_PROYECTO" else "responsable"
+                "auditor"
+                if function_code == "AUDITOR" and expected_profession == "TECNICO_HYS"
+                else "responsable"
             )
             if actor.key != expected_actor_key:
                 raise _unprocessable(
@@ -1733,6 +1779,11 @@ class PilotService:
                     "project_function_contractor_forbidden",
                     "Una función de proyecto no puede representar a un contratista.",
                 )
+        elif payload.delegated_by_assignment_id is not None:
+            raise _unprocessable(
+                "delegation_only_for_auditor",
+                "La delegación sólo puede informarse para una función AUDITOR.",
+            )
         elif payload.represented_contractor_id is None:
             raise _unprocessable(
                 "represented_contractor_required",
@@ -1799,6 +1850,7 @@ class PilotService:
             person_id=payload.person_id,
             function_code=payload.function_code.value,
             represented_contractor_id=payload.represented_contractor_id,
+            delegated_by_assignment_id=payload.delegated_by_assignment_id,
             permission_scope=payload.permission_scope.value,
             valid_from=valid_from,
             valid_to=payload.valid_to,
@@ -2428,6 +2480,7 @@ class PilotService:
                 "function_code": assignment.function_code,
                 "represented_contractor_id": assignment.represented_contractor_id,
                 "represented_contractor_name": contractor.legal_name if contractor else None,
+                "delegated_by_assignment_id": assignment.delegated_by_assignment_id,
                 "permission_scope": assignment.permission_scope,
                 "valid_from": assignment.valid_from,
                 "valid_to": assignment.valid_to,

@@ -91,6 +91,20 @@ def _audit(*, editor_id: UUID, status: str) -> Audit:
         updated_at=now,
         version=1,
         control_catalog_version_id=uuid4(),
+        auditor_actor_id=editor_id,
+        auditor_assignment_id=uuid4(),
+    )
+
+
+def _auditor_assignment(audit: Audit) -> WorksiteFunctionalAssignment:
+    return WorksiteFunctionalAssignment(
+        id=audit.auditor_assignment_id,
+        organization_id=PILOT_ORGANIZATION_ID,
+        worksite_id=audit.worksite_id,
+        actor_id=audit.auditor_actor_id,
+        function_code="AUDITOR",
+        permission_scope="WORKSITE",
+        valid_from=datetime.now(UTC).date(),
     )
 
 
@@ -123,7 +137,12 @@ def _configure_catalog_session(
     answered_codes: list[str] | None = None,
 ) -> list[ControlCatalogVersion]:
     catalog_controls = _catalog_controls()
-    session.scalar.side_effect = [audit, catalog_controls[-1], None]
+    session.scalar.side_effect = [
+        audit,
+        _auditor_assignment(audit),
+        catalog_controls[-1],
+        None,
+    ]
     session.scalars.side_effect = [
         catalog_controls,
         answered_codes or [],
@@ -138,7 +157,7 @@ def _configure_catalog_session(
 async def test_finalized_audit_rejects_new_controls() -> None:
     service, session = _service("auditor")
     audit = _audit(editor_id=PILOT_ACTORS["auditor"].id, status="FINALIZADA")
-    session.scalar.return_value = audit
+    session.scalar.side_effect = [audit, _auditor_assignment(audit)]
 
     with pytest.raises(ProblemException) as raised:
         await service.create_audit_control(
@@ -164,6 +183,15 @@ async def test_non_editor_cannot_finalize_audit() -> None:
 
     assert raised.value.status == 403
     assert raised.value.code == "audit_editor_required"
+
+
+@pytest.mark.asyncio
+async def test_responsible_actor_with_auditor_assignment_can_edit_audit() -> None:
+    service, session = _service("responsable")
+    audit = _audit(editor_id=PILOT_ACTORS["responsable"].id, status="EN_CURSO")
+    session.scalar.return_value = _auditor_assignment(audit)
+
+    await service._require_audit_editor(audit)
 
 
 @pytest.mark.asyncio
@@ -201,7 +229,7 @@ async def test_audit_rejects_control_outside_its_catalog_snapshot() -> None:
 
     assert raised.value.status == 422
     assert raised.value.code == "invalid_catalog_control"
-    assert session.scalar.await_count == 2
+    assert session.scalar.await_count == 3
 
 
 @pytest.mark.asyncio
@@ -209,7 +237,12 @@ async def test_audit_rejects_duplicate_response_for_snapshot_control() -> None:
     service, session = _service("auditor")
     audit = _audit(editor_id=PILOT_ACTORS["auditor"].id, status="EN_CURSO")
     _configure_catalog_session(session, audit)
-    session.scalar.side_effect = [audit, _catalog_controls()[-1], uuid4()]
+    session.scalar.side_effect = [
+        audit,
+        _auditor_assignment(audit),
+        _catalog_controls()[-1],
+        uuid4(),
+    ]
 
     with pytest.raises(ProblemException) as raised:
         await service.create_audit_control(
@@ -245,7 +278,13 @@ async def test_complete_audit_exposes_snapshot_and_becomes_immutable() -> None:
     service, session = _service("auditor")
     audit = _audit(editor_id=PILOT_ACTORS["auditor"].id, status="EN_CURSO")
     catalog_controls = _catalog_controls()
-    session.scalar.side_effect = [audit, catalog_controls[-1], catalog_controls[-1]]
+    session.scalar.side_effect = [
+        audit,
+        _auditor_assignment(audit),
+        catalog_controls[-1],
+        catalog_controls[-1],
+        _auditor_assignment(audit),
+    ]
     session.scalars.side_effect = [
         catalog_controls,
         [catalog.code for catalog in catalog_controls],

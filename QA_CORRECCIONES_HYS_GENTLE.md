@@ -53,7 +53,7 @@ No resolver permisos solamente por un rol generico.
 
 Funciones principales del proyecto:
 - RESPONSABLE_HYS_PROYECTO
-- AUDITOR_DELEGADO_PROYECTO
+- AUDITOR
 - RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL
 - TECNICO_HYS_CONTRATISTA_PRINCIPAL
 
@@ -63,7 +63,7 @@ Eliminar del selector de identidades la funcion generica "Responsable H&S suplen
 
 Reemplazar etiquetas genericas:
 - "Tecnico de obra" -> "Tecnico H&S de contratista principal"
-- "Auditor" -> "Tecnico auditor delegado del proyecto"
+- "Auditor" -> "Auditor"
 - "Responsable H&S" -> "Licenciado H&S del proyecto"
 
 Incorporar claramente como identidad profesional:
@@ -216,7 +216,7 @@ Mostrar para cada actor:
 
 Las asignaciones deben respetar:
 Responsable H&S proyecto -> representa Proyecto/Obra
-Auditor delegado -> representa Proyecto/Obra
+Auditor -> representa Proyecto/Obra
 Licenciado H&S contratista principal -> representa Contratista Principal
 Tecnico H&S contratista principal -> representa Contratista Principal
 Profesionales de otras contratistas -> representan su contratista especifica.
@@ -241,7 +241,7 @@ mostrar pendientes operativos:
 - contratistas;
 - personal.
 
-Auditor delegado:
+Auditor:
 mostrar:
 - auditorias;
 - documentacion pendiente de revision;
@@ -283,7 +283,7 @@ CONTRACTOR
 SUBCONTRACTOR
 LICENCIADO_HYS
 TECNICO_HYS
-AUDITOR_DELEGADO_PROYECTO
+AUDITOR
 NO_CUMPLE
 NO_APLICA
 NO_VERIFICADO
@@ -571,7 +571,7 @@ No mostrar al usuario nombres de eventos internos salvo en logs tecnicos.
 P9 - ETAPAS
 ==================================================
 
-Auditor delegado:
+Auditor:
 solo consulta.
 
 Tecnico H&S:

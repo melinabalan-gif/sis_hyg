@@ -73,7 +73,7 @@ class ProfessionCode(StrEnum):
 
 class FunctionalAssignmentCode(StrEnum):
     RESPONSABLE_HYS_PROYECTO = "RESPONSABLE_HYS_PROYECTO"
-    AUDITOR_DELEGADO_PROYECTO = "AUDITOR_DELEGADO_PROYECTO"
+    AUDITOR = "AUDITOR"
     RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL = "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL"
     TECNICO_HYS_CONTRATISTA_PRINCIPAL = "TECNICO_HYS_CONTRATISTA_PRINCIPAL"
     RESPONSABLE_HYS_CONTRATISTA = "RESPONSABLE_HYS_CONTRATISTA"
@@ -641,6 +641,7 @@ class WorksiteFunctionalAssignmentCreate(StrictSchema):
     person_id: UUID | None = None
     function_code: FunctionalAssignmentCode
     represented_contractor_id: UUID | None = None
+    delegated_by_assignment_id: UUID | None = None
     permission_scope: PermissionScope = PermissionScope.WORKSITE
     valid_from: date | None = None
     valid_to: date | None = None
@@ -668,6 +669,7 @@ class WorksiteFunctionalAssignmentView(StrictSchema):
     function_code: FunctionalAssignmentCode
     represented_contractor_id: UUID | None
     represented_contractor_name: str | None
+    delegated_by_assignment_id: UUID | None
     permission_scope: PermissionScope
     valid_from: date
     valid_to: date | None

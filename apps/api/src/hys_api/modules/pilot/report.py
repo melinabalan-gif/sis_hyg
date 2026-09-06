@@ -19,7 +19,7 @@ _LABELS = {
     "ABIERTO": "Abierto",
     "ALTA": "Alta",
     "APROBADO": "Aprobado",
-    "AUDITOR_DELEGADO_PROYECTO": "Tecnico auditor delegado del proyecto",
+    "AUDITOR": "Auditor",
     "CERRADO": "Cerrado",
     "CON_OBSERVACIONES": "Con observaciones",
     "CUMPLE": "Cumple",

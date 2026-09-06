@@ -73,7 +73,7 @@ Abreviaturas: `ADM` Administrador, `TEC` Técnico H&S, `AUD` Auditor,
 | `templates.write` | ✓ | — | — | ✓ | — | — | no HTML arbitrario; nueva versión |
 
 Las asignaciones funcionales admitidas son `RESPONSABLE_HYS_PROYECTO`,
-`AUDITOR_DELEGADO_PROYECTO`, `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL` y
+`AUDITOR`, `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL` y
 `TECNICO_HYS_CONTRATISTA_PRINCIPAL`. El selector legado se conserva para la demo,
 pero no concede acceso a una obra sin una asignación persistida y vigente;
 `responsable-suplente` se resuelve como `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL`.

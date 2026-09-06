@@ -138,7 +138,7 @@ const MACHINE_CHECKLIST_KEYS = Object.keys(CHECKLIST_LABELS);
 
 const FUNCTION_LABELS: Record<string, string> = {
   RESPONSABLE_HYS_PROYECTO: "Licenciado H&S del proyecto",
-  AUDITOR_DELEGADO_PROYECTO: "Técnico auditor delegado del proyecto",
+  AUDITOR: "Auditor",
   RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL:
     "Licenciado H&S de contratista principal",
   TECNICO_HYS_CONTRATISTA_PRINCIPAL: "Técnico H&S de contratista principal",
@@ -218,7 +218,13 @@ export function PilotWorkspace() {
   const actorDefinition = PILOT_ACTORS.find((item) => item.value === actor);
   const canManageResources = role === "TECNICO" || role === "RESPONSABLE_HYS";
   const canManageAssignments = canManageResources;
-  const canManageAudit = role === "AUDITOR" || role === "RESPONSABLE_HYS";
+  const canManageAudit = Boolean(
+    detail?.functional_assignments?.some(
+      (assignment) =>
+        assignment.actor_key === actor &&
+        assignment.function_code === "AUDITOR",
+    ),
+  );
   const canVerify = role === "AUDITOR" || role === "RESPONSABLE_HYS";
 
   const loadList = useCallback(async (nextActor: PilotActor) => {
@@ -1109,10 +1115,9 @@ function Overview({
   const hasPrincipal = detail.contractors.some(
     (item) => item.participation_type === "PRINCIPAL",
   );
-  const hasProjectActors = [
-    "RESPONSABLE_HYS_PROYECTO",
-    "AUDITOR_DELEGADO_PROYECTO",
-  ].every((code) => assignments.some((item) => item.function_code === code));
+  const hasProjectActors = ["RESPONSABLE_HYS_PROYECTO", "AUDITOR"].every(
+    (code) => assignments.some((item) => item.function_code === code),
+  );
   const totalRecords =
     detail.contractors.length +
     detail.stages.length +
@@ -1167,7 +1172,7 @@ function Overview({
             {!hasProjectActors ? (
               <li>
                 <button onClick={() => onStep("actors")} type="button">
-                  Asignar responsables y auditor delegado
+                  Asignar responsables y Auditor
                 </button>
               </li>
             ) : null}
@@ -2456,10 +2461,7 @@ function AuditStep({
   const progressLabel = `${answeredCount} de ${availableControls.length} controles respondidos`;
   const auditAssignments = (detail.functional_assignments ?? []).filter(
     (assignment) =>
-      assignment.actor_key === actor &&
-      ["AUDITOR_DELEGADO_PROYECTO", "RESPONSABLE_HYS_PROYECTO"].includes(
-        assignment.function_code,
-      ),
+      assignment.actor_key === actor && assignment.function_code === "AUDITOR",
   );
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(
     auditAssignments[0]?.id ?? "",

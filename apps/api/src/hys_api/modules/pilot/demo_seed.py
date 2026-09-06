@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import SecretStr
-from sqlalchemy import delete, select, text
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -294,8 +294,8 @@ async def seed_demo() -> bool:
                         {
                             "id": delegated_auditor_person_id,
                             "organization_id": ORGANIZATION_ID,
-                            "display_name": "Técnico auditor delegado demo",
-                            "role_label": "Auditor delegado de proyecto",
+                            "display_name": "Auditor técnico demo",
+                            "role_label": "Auditor",
                             "profession_code": "TECNICO_HYS",
                             "created_at": SEED_AT,
                             "updated_at": SEED_AT,
@@ -398,6 +398,7 @@ async def seed_demo() -> bool:
                             "person_id": project_professional_id,
                             "function_code": "RESPONSABLE_HYS_PROYECTO",
                             "represented_contractor_id": None,
+                            "delegated_by_assignment_id": None,
                             "permission_scope": "WORKSITE",
                             "valid_from": date(2026, 9, 1),
                             "version": 1,
@@ -409,8 +410,23 @@ async def seed_demo() -> bool:
                             "worksite_id": WORKSITE_ID,
                             "actor_id": AUDITOR_ID,
                             "person_id": delegated_auditor_person_id,
-                            "function_code": "AUDITOR_DELEGADO_PROYECTO",
+                            "function_code": "AUDITOR",
                             "represented_contractor_id": None,
+                            "delegated_by_assignment_id": _id(1038),
+                            "permission_scope": "WORKSITE",
+                            "valid_from": date(2026, 9, 1),
+                            "version": 1,
+                            "created_at": SEED_AT,
+                        },
+                        {
+                            "id": _id(1040),
+                            "organization_id": ORGANIZATION_ID,
+                            "worksite_id": WORKSITE_ID,
+                            "actor_id": RESPONSABLE_ID,
+                            "person_id": project_professional_id,
+                            "function_code": "AUDITOR",
+                            "represented_contractor_id": None,
+                            "delegated_by_assignment_id": None,
                             "permission_scope": "WORKSITE",
                             "valid_from": date(2026, 9, 1),
                             "version": 1,
@@ -424,6 +440,7 @@ async def seed_demo() -> bool:
                             "person_id": contractor_professional_id,
                             "function_code": "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
                             "represented_contractor_id": contractor_id,
+                            "delegated_by_assignment_id": None,
                             "permission_scope": "WORKSITE",
                             "valid_from": date(2026, 9, 1),
                             "version": 1,
@@ -437,6 +454,7 @@ async def seed_demo() -> bool:
                             "person_id": contractor_technician_id,
                             "function_code": "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
                             "represented_contractor_id": contractor_id,
+                            "delegated_by_assignment_id": None,
                             "permission_scope": "WORKSITE",
                             "valid_from": date(2026, 9, 1),
                             "version": 1,
@@ -449,17 +467,12 @@ async def seed_demo() -> bool:
                         "person_id",
                         "function_code",
                         "represented_contractor_id",
+                        "delegated_by_assignment_id",
                         "permission_scope",
                         "valid_from",
                         "valid_to",
                         "version",
                     ),
-                )
-            )
-            await connection.execute(
-                delete(WorksiteFunctionalAssignment).where(
-                    WorksiteFunctionalAssignment.organization_id == ORGANIZATION_ID,
-                    WorksiteFunctionalAssignment.id == _id(1040),
                 )
             )
             machine_id = _id(1007)

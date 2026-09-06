@@ -1465,7 +1465,7 @@
       "FunctionalAssignmentCode": {
         "enum": [
           "RESPONSABLE_HYS_PROYECTO",
-          "AUDITOR_DELEGADO_PROYECTO",
+          "AUDITOR",
           "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
           "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
           "RESPONSABLE_HYS_CONTRATISTA",
@@ -2698,6 +2698,18 @@
             "title": "Actor Id",
             "type": "string"
           },
+          "delegated_by_assignment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delegated By Assignment Id"
+          },
           "function_code": {
             "$ref": "#/components/schemas/FunctionalAssignmentCode"
           },
@@ -2776,6 +2788,18 @@
           "actor_label": {
             "title": "Actor Label",
             "type": "string"
+          },
+          "delegated_by_assignment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delegated By Assignment Id"
           },
           "function_code": {
             "$ref": "#/components/schemas/FunctionalAssignmentCode"
@@ -2883,6 +2907,7 @@
           "function_code",
           "represented_contractor_id",
           "represented_contractor_name",
+          "delegated_by_assignment_id",
           "permission_scope",
           "valid_from",
           "valid_to",

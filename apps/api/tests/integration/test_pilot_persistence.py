@@ -284,7 +284,8 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
             assignments = (
                 await connection.execute(
                     text(
-                        "SELECT actor_id, person_id, function_code, represented_contractor_id "
+                        "SELECT actor_id, person_id, function_code, represented_contractor_id, "
+                        "delegated_by_assignment_id "
                         "FROM worksite_functional_assignments WHERE organization_id = :org "
                         "AND worksite_id = :worksite ORDER BY function_code"
                     ),
@@ -336,7 +337,7 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
         else:
             os.environ["HYS_MIGRATION_DATABASE_URL"] = previous_migration_url
 
-    assert counts == (5, 5, 3, 3, 4)
+    assert counts == (5, 5, 3, 3, 5)
     assert hierarchy == [
         (DEMO_PRINCIPAL_CONTRACTOR_ID, "PRINCIPAL", None),
         (DEMO_SECONDARY_CONTRACTOR_ID, "CONTRACTOR", DEMO_PRINCIPAL_CONTRACTOR_ID),
@@ -347,17 +348,32 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
         ),
     ]
     assert assignments == [
-        (PILOT_ACTORS["auditor"].id, DEMO_AUDITOR_PERSON_ID, "AUDITOR_DELEGADO_PROYECTO", None),
+        (
+            PILOT_ACTORS["auditor"].id,
+            DEMO_AUDITOR_PERSON_ID,
+            "AUDITOR",
+            None,
+            UUID("00000000-0000-4000-8000-000000001038"),
+        ),
+        (
+            PILOT_ACTORS["responsable"].id,
+            DEMO_PROJECT_PROFESSIONAL_ID,
+            "AUDITOR",
+            None,
+            None,
+        ),
         (
             PILOT_ACTORS["responsable-suplente"].id,
             DEMO_CONTRACTOR_PROFESSIONAL_ID,
             "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
             DEMO_PRINCIPAL_CONTRACTOR_ID,
+            None,
         ),
         (
             PILOT_ACTORS["responsable"].id,
             DEMO_PROJECT_PROFESSIONAL_ID,
             "RESPONSABLE_HYS_PROYECTO",
+            None,
             None,
         ),
         (
@@ -365,6 +381,7 @@ async def test_demo_seed_is_idempotent_and_repairs_actor_domain_metadata(
             DEMO_CONTRACTOR_TECHNICIAN_ID,
             "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
             DEMO_PRINCIPAL_CONTRACTOR_ID,
+            None,
         ),
     ]
     assert audit == (
@@ -441,11 +458,59 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
                 worksite.id,
                 PersonCreate(
                     display_name="Responsable funciones sintético",
-                    contractor_id=contractor.id,
                     profession_code="LICENCIADO_HYS",
                 ),
             ),
         )
+        responsible_assignment = await run_as(
+            "tecnico",
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["responsable"].id,
+                    person_id=responsible.id,
+                    function_code="RESPONSABLE_HYS_PROYECTO",
+                ),
+            ),
+        )
+        with pytest.raises(ProblemException) as missing_auditor_delegation:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["auditor"].id,
+                        person_id=technician.id,
+                        function_code="AUDITOR",
+                    ),
+                ),
+            )
+        delegated_auditor = await run_as(
+            "tecnico",
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["auditor"].id,
+                    person_id=technician.id,
+                    function_code="AUDITOR",
+                    delegated_by_assignment_id=responsible_assignment.id,
+                ),
+            ),
+        )
+        with pytest.raises(ProblemException) as auditor_represents_contractor:
+            await run_as(
+                "tecnico",
+                lambda service: service.create_functional_assignment(
+                    worksite.id,
+                    WorksiteFunctionalAssignmentCreate(
+                        actor_id=PILOT_ACTORS["auditor"].id,
+                        person_id=technician.id,
+                        function_code="AUDITOR",
+                        represented_contractor_id=contractor.id,
+                        delegated_by_assignment_id=responsible_assignment.id,
+                    ),
+                ),
+            )
         secondary = await run_as(
             "tecnico",
             lambda service: service.create_contractor(
@@ -564,6 +629,9 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
     assert wrong_worksite.value.code == "pilot_resource_not_found"
     assert wrong_contractor.value.status == 404
     assert wrong_contractor.value.code == "pilot_resource_not_found"
+    assert missing_auditor_delegation.value.code == "auditor_delegation_required"
+    assert delegated_auditor.delegated_by_assignment_id == responsible_assignment.id
+    assert auditor_represents_contractor.value.code == "project_function_contractor_forbidden"
 
 
 @pytest.mark.asyncio
@@ -997,14 +1065,36 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                 ),
             ),
         )
+        project_responsible_person = await run_as(
+            "tecnico",
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Responsable proyecto de recorrido",
+                    role_label="Responsable H&S proyecto",
+                    profession_code="LICENCIADO_HYS",
+                ),
+            ),
+        )
+        project_responsible_assignment = await run_as(
+            "tecnico",
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["responsable"].id,
+                    person_id=project_responsible_person.id,
+                    function_code="RESPONSABLE_HYS_PROYECTO",
+                ),
+            ),
+        )
         auditor_person = await run_as(
             "tecnico",
             lambda service: service.create_person(
                 worksite.id,
                 PersonCreate(
-                    display_name="Auditor delegado de recorrido",
+                    display_name="Auditor técnico de recorrido",
                     contractor_id=principal.id,
-                    role_label="Auditor delegado",
+                    role_label="Auditor",
                     profession_code="TECNICO_HYS",
                 ),
             ),
@@ -1016,7 +1106,8 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                 WorksiteFunctionalAssignmentCreate(
                     actor_id=PILOT_ACTORS["auditor"].id,
                     person_id=auditor_person.id,
-                    function_code="AUDITOR_DELEGADO_PROYECTO",
+                    function_code="AUDITOR",
+                    delegated_by_assignment_id=project_responsible_assignment.id,
                 ),
             ),
         )

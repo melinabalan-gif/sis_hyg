@@ -22,7 +22,10 @@ async def test_pilot_actor_header_resolves_only_stable_synthetic_actors() -> Non
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("value", [None, "", "administrador", "RESPONSABLE"])
+@pytest.mark.parametrize(
+    "value",
+    [None, "", "administrador", "RESPONSABLE", "tecnico-contratista", "licenciado-contratista"],
+)
 async def test_unknown_pilot_actor_is_unauthorized(value: str | None) -> None:
     with pytest.raises(ProblemException) as raised:
         await get_pilot_actor(value)

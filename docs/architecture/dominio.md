@@ -85,10 +85,11 @@ crear una tabla de autenticación. La identidad técnica no reemplaza el dominio
 | Profesión | `PERSON.profession_code` | catálogo controlado, independiente del texto de función |
 | Función | `WORKSITE_FUNCTIONAL_ASSIGNMENT.function_code` | asignación temporal del actor a una obra |
 | Empresa representada | `WORKSITE_FUNCTIONAL_ASSIGNMENT.represented_contractor_id` | vínculo contextual, no tipo de actor |
+| Delegación | `WORKSITE_FUNCTIONAL_ASSIGNMENT.delegated_by_assignment_id` | relación tenant-safe con un `RESPONSABLE_HYS_PROYECTO` vigente para un Auditor técnico |
 | Alcance | `WORKSITE_FUNCTIONAL_ASSIGNMENT.permission_scope` | obra u organización |
 
 Las funciones del corte son `RESPONSABLE_HYS_PROYECTO`,
-`AUDITOR_DELEGADO_PROYECTO`, `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL` y
+`AUDITOR`, `RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL` y
 `TECNICO_HYS_CONTRATISTA_PRINCIPAL`. La autorización efectiva consulta la
 asignación vigente y la obra antes de usar el rol textual legado.
 

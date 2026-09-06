@@ -44,7 +44,7 @@ PILOT_ACTORS = MappingProxyType(
             key="auditor",
             id=UUID("00000000-0000-4000-8000-000000000001"),
             role=PilotRole.AUDITOR,
-            label="Auditor delegado proyecto",
+            label="Auditor",
             profession_code="TECNICO_HYS",
         ),
         "tecnico": PilotActor(
@@ -101,6 +101,19 @@ PILOT_ACTORS = MappingProxyType(
     }
 )
 
+# Contractor-professional records remain available to domain validation, while
+# non-principal contractor identities are not accepted as pilot HTTP actors.
+PILOT_HTTP_ACTOR_KEYS = frozenset(
+    {
+        "tecnico",
+        "auditor",
+        "responsable",
+        "responsable-suplente",
+        "licenciado-contratista-principal",
+        "contratista-principal",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class PilotRequestContext:
@@ -115,7 +128,11 @@ async def get_pilot_actor(
 ) -> PilotActor:
     """Resuelve únicamente las identidades sintéticas permitidas para el piloto."""
 
-    actor = PILOT_ACTORS.get(pilot_actor_key or "")
+    actor = (
+        PILOT_ACTORS.get(pilot_actor_key or "")
+        if (pilot_actor_key or "") in PILOT_HTTP_ACTOR_KEYS
+        else None
+    )
     if actor is None:
         raise ProblemException(
             status=401,

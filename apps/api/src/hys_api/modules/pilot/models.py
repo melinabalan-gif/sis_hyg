@@ -18,6 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.naming import conv
 
 from hys_api.db.base import Base
 
@@ -387,13 +388,35 @@ class WorksiteFunctionalAssignment(Base):
             ["contractors.organization_id", "contractors.id"],
             name="fk_worksite_functional_assignments_org_contractor_contractors",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "worksite_id", "delegated_by_assignment_id"],
+            [
+                "worksite_functional_assignments.organization_id",
+                "worksite_functional_assignments.worksite_id",
+                "worksite_functional_assignments.id",
+            ],
+            name="fk_wfa_org_worksite_delegated_by_assignment",
+        ),
         CheckConstraint(
             "function_code IN ("
-            "'RESPONSABLE_HYS_PROYECTO', 'AUDITOR_DELEGADO_PROYECTO', "
+            "'RESPONSABLE_HYS_PROYECTO', 'AUDITOR', "
             "'RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL', "
             "'TECNICO_HYS_CONTRATISTA_PRINCIPAL', "
             "'RESPONSABLE_HYS_CONTRATISTA', 'TECNICO_HYS_CONTRATISTA')",
             name="valid_function_code",
+        ),
+        CheckConstraint(
+            "function_code NOT IN ('RESPONSABLE_HYS_PROYECTO', 'AUDITOR') "
+            "OR represented_contractor_id IS NULL",
+            name=conv("ck_wfa_project_contractor_forbidden"),
+        ),
+        CheckConstraint(
+            "function_code = 'AUDITOR' OR delegated_by_assignment_id IS NULL",
+            name=conv("ck_wfa_delegation_only_auditor"),
+        ),
+        CheckConstraint(
+            "delegated_by_assignment_id IS NULL OR delegated_by_assignment_id <> id",
+            name=conv("ck_wfa_delegation_cannot_be_self"),
         ),
         CheckConstraint(
             "permission_scope IN ('WORKSITE', 'ORGANIZATION')",
@@ -422,6 +445,7 @@ class WorksiteFunctionalAssignment(Base):
     person_id: Mapped[UUID | None] = mapped_column()
     function_code: Mapped[str] = mapped_column(String(64), nullable=False)
     represented_contractor_id: Mapped[UUID | None] = mapped_column()
+    delegated_by_assignment_id: Mapped[UUID | None] = mapped_column()
     permission_scope: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default=text("'WORKSITE'")
     )

@@ -61,6 +61,26 @@ const detail = {
   people: [],
   documents: [],
   machines: [],
+  functional_assignments: [
+    {
+      id: "11000000-0000-4000-8000-000000000001",
+      worksite_id: worksite.id,
+      actor_id: "00000000-0000-4000-8000-000000000001",
+      actor_key: "auditor",
+      actor_label: "Auditor",
+      person_id: null,
+      person_name: null,
+      profession_code: "TECNICO_HYS",
+      function_code: "AUDITOR",
+      represented_contractor_id: null,
+      represented_contractor_name: null,
+      delegated_by_assignment_id: null,
+      permission_scope: "WORKSITE",
+      valid_from: "2026-09-01",
+      valid_to: null,
+      version: 1,
+    },
+  ],
   audits: [],
   findings: [],
   metrics: emptyMetrics,
@@ -95,6 +115,23 @@ describe("HomePage", () => {
       await screen.findByText(/creá la primera obra sintética/i),
     ).toBeVisible();
     expect(screen.getByLabelText(/actuar como/i)).toHaveValue("tecnico");
+  });
+
+  it("expone sólo las identidades seleccionables del piloto", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse([])));
+
+    render(<HomePage />);
+
+    const selector = await screen.findByLabelText(/actuar como/i);
+    expect(
+      Array.from(selector.querySelectorAll("option")).map((option) => option.value),
+    ).toEqual([
+      "tecnico",
+      "auditor",
+      "responsable",
+      "licenciado-contratista-principal",
+      "contratista-principal",
+    ]);
   });
 
   it("crea, abre y navega una obra persistida", async () => {
