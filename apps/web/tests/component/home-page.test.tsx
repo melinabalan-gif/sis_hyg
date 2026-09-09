@@ -192,7 +192,41 @@ describe("HomePage", () => {
     ]);
   });
 
-  it("muestra Nueva obra y Crear y abrir sólo a los tres perfiles autorizados", async () => {
+  it("separa el perfil activo de su información secundaria en el encabezado", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse([])),
+    );
+
+    render(<HomePage />);
+
+    const header = screen.getByRole("banner");
+    const context = header.querySelector(".actor-context");
+
+    expect(context).toBeInTheDocument();
+    expect(context?.querySelector("strong")).toHaveTextContent(
+      "Técnico H&S de contratista principal",
+    );
+    expect(context?.querySelector("span")).toHaveTextContent(
+      "Perfil operativo del piloto",
+    );
+    expect(context?.classList.contains("actor-context")).toBe(true);
+    expect(header.querySelector(".actor-switcher")).toBeInTheDocument();
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(/actuar como/i),
+      "responsable",
+    );
+
+    expect(context?.querySelector("strong")).toHaveTextContent(
+      "Licenciado H&S del proyecto",
+    );
+    expect(context?.querySelector("span")).toHaveTextContent(
+      "Perfil operativo del piloto",
+    );
+  });
+
+  it("mantiene la creación sólo en el formulario principal de los perfiles autorizados", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => jsonResponse([])),
@@ -201,6 +235,14 @@ describe("HomePage", () => {
 
     render(<HomePage />);
     const selector = await screen.findByLabelText(/actuar como/i);
+
+    for (const label of [
+      "Preparar el legajo",
+      "Ejecutar el control",
+      "Corregir y verificar",
+    ]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
 
     for (const actor of ["tecnico", "auditor"] as const) {
       await user.selectOptions(selector, actor);
@@ -221,7 +263,9 @@ describe("HomePage", () => {
       "contratista-principal",
     ] as const) {
       await user.selectOptions(selector, actor);
-      expect(screen.getByRole("button", { name: "Nueva obra" })).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Nueva obra" }),
+      ).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /crear y abrir/i }),
       ).toBeEnabled();

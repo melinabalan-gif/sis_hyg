@@ -250,9 +250,9 @@ p {
 
 .workspace-header {
   min-height: 88px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(220px, 1.2fr);
   align-items: center;
-  justify-content: space-between;
   gap: 24px;
   border-bottom: 1px solid var(--line);
 }
@@ -305,6 +305,26 @@ p {
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 10px;
+}
+
+.actor-context {
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  text-align: right;
+}
+
+.actor-context strong {
+  color: var(--ink-900);
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.actor-context span {
+  color: var(--ink-500);
+  font-size: 0.7rem;
+  line-height: 1.25;
 }
 
 .pilot-notice {
@@ -404,23 +424,6 @@ p {
   color: #c9d9e0;
   font-size: 1.04rem;
   line-height: 1.65;
-}
-
-.flow-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 26px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.flow-preview li {
-  padding: 10px 14px;
-  background: rgb(255 255 255 / 8%);
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 999px;
-  font-size: 0.78rem;
 }
 
 .worksite-titlebar {
@@ -1664,6 +1667,13 @@ summary:focus-visible {
     align-items: stretch;
     flex-direction: column;
     padding-bottom: 12px;
+  }
+
+  .actor-context {
+    width: 100%;
+    justify-items: start;
+    padding-bottom: 14px;
+    text-align: left;
   }
 
   .pilot-notice {

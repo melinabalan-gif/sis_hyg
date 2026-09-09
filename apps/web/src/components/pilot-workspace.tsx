@@ -479,22 +479,6 @@ export function PilotWorkspace() {
             </button>
           ))}
         </div>
-
-        {canCreateWorksite ? (
-          <button
-            className="button button--primary"
-            onClick={() => {
-              setSelectedId(null);
-              setSelectedAuditId(null);
-              setDetail(null);
-              setError(null);
-              setNotice(null);
-            }}
-            type="button"
-          >
-            Nueva obra
-          </button>
-        ) : null}
       </aside>
 
       <section className="workspace" aria-label="Espacio de trabajo de la obra">
@@ -558,71 +542,64 @@ export function PilotWorkspace() {
                 : "Seleccioná una obra existente para continuar el recorrido operativo con datos persistentes."}
             </p>
             {canCreateWorksite ? (
-              <>
-                <ol className="flow-preview">
-                  <li>Preparar el legajo</li>
-                  <li>Ejecutar el control</li>
-                  <li>Corregir y verificar</li>
-                </ol>
-                <Card className="new-worksite-card">
-                  <h2>Alta inicial</h2>
-                  <p className="muted">
-                    La obra comienza sin actores heredados. Después podrás
-                    configurar responsables, contratistas y etapas.
-                  </p>
-                  <form
-                    className="form-grid form-grid--wide"
-                    onSubmit={(event) => void createWorksite(event)}
+              <Card className="new-worksite-card">
+                <h2>Alta inicial</h2>
+                <p className="muted">
+                  La obra comienza sin actores heredados. Después podrás
+                  configurar responsables, contratistas y etapas.
+                </p>
+                <form
+                  className="form-grid form-grid--wide"
+                  onSubmit={(event) => void createWorksite(event)}
+                >
+                  <Field label="Código">
+                    <input
+                      name="code"
+                      placeholder="OBRA-001"
+                      required
+                      maxLength={64}
+                    />
+                  </Field>
+                  <Field label="Nombre">
+                    <input
+                      name="name"
+                      placeholder="Ampliación planta piloto"
+                      required
+                      maxLength={200}
+                    />
+                  </Field>
+                  <Field label="País">
+                    <input
+                      name="country"
+                      placeholder="Argentina"
+                      required
+                      maxLength={120}
+                    />
+                  </Field>
+                  <Field label="Provincia">
+                    <input
+                      name="province"
+                      placeholder="Provincia sintética"
+                      required
+                      maxLength={120}
+                    />
+                  </Field>
+                  <Field label="Municipio">
+                    <input
+                      name="municipality"
+                      placeholder="Municipio sintético"
+                      required
+                      maxLength={120}
+                    />
+                  </Field>
+                  <button
+                    className="button button--primary form-action"
+                    disabled={busy !== null}
                   >
-                    <Field label="Código">
-                      <input
-                        name="code"
-                        placeholder="OBRA-001"
-                        required
-                        maxLength={64}
-                      />
-                    </Field>
-                    <Field label="Nombre">
-                      <input
-                        name="name"
-                        placeholder="Ampliación planta piloto"
-                        required
-                        maxLength={200}
-                      />
-                    </Field>
-                    <Field label="País">
-                      <input
-                        name="country"
-                        placeholder="Argentina"
-                        required
-                        maxLength={120}
-                      />
-                    </Field>
-                    <Field label="Provincia">
-                      <input
-                        name="province"
-                        placeholder="Provincia sintética"
-                        required
-                        maxLength={120}
-                      />
-                    </Field>
-                    <Field label="Municipio">
-                      <input
-                        name="municipality"
-                        placeholder="Municipio sintético"
-                        required
-                        maxLength={120}
-                      />
-                    </Field>
-                    <button
-                      className="button button--primary form-action"
-                      disabled={busy !== null}
-                    >
-                      {busy === "worksite" ? "Creando…" : "Crear y abrir"}
-                    </button>
-                  </form>
-                </Card>
-              </>
+                    {busy === "worksite" ? "Creando…" : "Crear y abrir"}
+                  </button>
+                </form>
+              </Card>
             ) : null}
           </section>
         ) : (
