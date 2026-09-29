@@ -15,12 +15,10 @@ import {
   downloadAuditReport,
   formatDate,
   formatDateTime,
-  downloadWorksiteReport,
   getWorksite,
   listWorksites,
   pilotLabel,
   type Audit,
-  type DocumentSubjectKind,
   type Finding,
   type PilotActor,
   type WorksiteDetail,
@@ -29,12 +27,12 @@ import {
 } from "../lib/pilot-api";
 
 const STEPS = [
-  ["overview", "Resumen"],
+  ["overview", "Inicio"],
   ["actors", "RESPONSABLES"],
   ["stages", "Etapas"],
   ["contractors", "Contratistas"],
   ["people", "Personal"],
-  ["documents", "Documentación"],
+  ["documents", "Legajos Técnicos"],
   ["machines", "Maquinarias"],
   ["audit", "Auditoría"],
   ["followup", "Seguimiento"],
@@ -95,29 +93,6 @@ function Card({
   return <article className={`card ${className}`.trim()}>{children}</article>;
 }
 
-const DOCUMENT_STATUS_LABELS = [
-  ["FALTANTE", "Faltante"],
-  ["PENDIENTE", "Pendiente"],
-  ["OBSERVADO", "Observado"],
-  ["RECHAZADO", "Rechazado"],
-  ["POR_VENCER", "Por vencer"],
-  ["VENCIDO", "Vencido"],
-  ["VIGENTE", "Vigente"],
-] as const;
-
-const FINDING_STATUS_LABELS = [
-  ["ABIERTO", "Abierto"],
-  ["EN_CORRECCION", "En corrección"],
-  ["PENDIENTE_VERIFICACION", "Pendiente de verificación"],
-  ["CERRADO", "Cerrado"],
-] as const;
-
-const MACHINE_STATUS_LABELS = [
-  ["OPERATIVA", "Operativa"],
-  ["CON_OBSERVACIONES", "Con observaciones"],
-  ["FUERA_DE_SERVICIO", "Fuera de servicio"],
-] as const;
-
 const CHECKLIST_LABELS: Record<string, string> = {
   brakes: "Frenos",
   lights: "Luces",
@@ -152,60 +127,20 @@ const WORKSITE_CREATOR_ACTORS: readonly PilotActor[] = [
   "contratista-principal",
 ];
 
+const PRINCIPAL_TECHNICAL_FILE_EDITORS: readonly PilotActor[] = [
+  "tecnico",
+  "licenciado-contratista-principal",
+];
+
+const PRINCIPAL_TECHNICAL_FILE_LICENSED_ONLY = new Set([
+  "Matrícula del Licenciado H&S responsable",
+  "Carga horaria semanal",
+]);
+
+const PROJECT_TECHNICAL_FILE_EDITORS: readonly PilotActor[] = ["responsable"];
+
 function checklistLabel(key: string): string {
   return CHECKLIST_LABELS[key] ?? pilotLabel(key);
-}
-
-function DashboardPanel({
-  eyebrow,
-  title,
-  target,
-  onStep,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  target: Step;
-  onStep: (step: Step) => void;
-  children: ReactNode;
-}) {
-  return (
-    <Card className="dashboard-panel">
-      <div className="dashboard-panel__header">
-        <div>
-          <p className="kicker">{eyebrow}</p>
-          <h3>{title}</h3>
-        </div>
-        <button
-          className="dashboard-panel__link"
-          onClick={() => onStep(target)}
-          type="button"
-        >
-          Ver detalle →
-        </button>
-      </div>
-      {children}
-    </Card>
-  );
-}
-
-function DashboardStatusList({
-  statuses,
-  counts,
-}: {
-  statuses: readonly (readonly [string, string])[];
-  counts: Record<string, number>;
-}) {
-  return (
-    <ul className="dashboard-status-list">
-      {statuses.map(([key, label]) => (
-        <li key={key}>
-          <span>{label}</span>
-          <strong>{counts[key] ?? 0}</strong>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export function PilotWorkspace() {
@@ -359,31 +294,6 @@ export function PilotWorkspace() {
     }
   }
 
-  async function downloadReport() {
-    setBusy("report");
-    setError(null);
-    setNotice(null);
-    try {
-      if (!detail) return;
-      const blob = await downloadWorksiteReport(detail.id, actor);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${detail.code.toLowerCase()}-reporte.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setNotice("PDF generado desde el estado persistido de la obra.");
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "No se pudo generar el PDF de la obra.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function downloadAudit(auditId: string) {
     setBusy("audit-report");
     setError(null);
@@ -434,64 +344,56 @@ export function PilotWorkspace() {
     );
   }, [detail, selectedAuditId]);
 
-  const totalRecords = detail
-    ? detail.contractors.length +
-      detail.stages.length +
-      detail.people.length +
-      detail.documents.length +
-      detail.machines.length
-    : 0;
-
   return (
     <div className="pilot-layout">
-      <aside className="worksite-rail" aria-label="Selector de obras">
-        <div className="rail-heading">
-          <div>
-            <p className="kicker">Piloto funcional</p>
-            <h2>Obras</h2>
-          </div>
-          <span className="counter" aria-label={`${worksites.length} obras`}>
-            {worksites.length}
-          </span>
+      <aside className="worksite-rail" aria-label="Navegación principal">
+        <div className="rail-brand">
+          <span className="brand-mark" aria-hidden="true">H&amp;S</span>
+          <strong>H&amp;S Gestión</strong>
         </div>
+        <button
+          className={`rail-home ${!selectedId ? "is-active" : ""}`}
+          onClick={() => {
+            setSelectedId(null);
+            setSelectedAuditId(null);
+            setDetail(null);
+            setStep("overview");
+          }}
+          type="button"
+        >
+          <span aria-hidden="true">OB</span>
+          Obras
+        </button>
 
-        <div className="worksite-list">
-          {loading && worksites.length === 0 ? (
-            <p className="loading-copy">Cargando obras…</p>
-          ) : null}
-          {!loading && worksites.length === 0 ? (
-            <EmptyState>
-              {canCreateWorksite
-                ? "Creá la primera obra sintética para iniciar el recorrido."
-                : "No hay obras disponibles para abrir con este perfil."}
-            </EmptyState>
-          ) : null}
-          {worksites.map((worksite) => (
-            <button
-              className={`worksite-button ${selectedId === worksite.id ? "is-active" : ""}`}
-              key={worksite.id}
-              onClick={() => void selectWorksite(worksite.id)}
-              type="button"
-            >
-              <span>{worksite.code}</span>
-              <strong>{worksite.name}</strong>
-              <small>{pilotLabel(worksite.status)}</small>
-            </button>
-          ))}
-        </div>
+        {selectedId && detail ? (
+          <nav className="worksite-nav" aria-label="Navegación de la obra activa">
+            <div className="worksite-nav__heading">
+              <div>
+                <p className="kicker">Obra activa</p>
+                <strong>{detail.name}</strong>
+                <small>{detail.code} · {pilotLabel(detail.status)}</small>
+              </div>
+            </div>
+            <div className="worksite-nav__items" role="tablist">
+              {STEPS.map(([value, label]) => (
+                <button
+                  aria-selected={step === value}
+                  className={step === value ? "is-active" : ""}
+                  key={value}
+                  onClick={() => setStep(value)}
+                  role="tab"
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </nav>
+        ) : null}
       </aside>
 
       <section className="workspace" aria-label="Espacio de trabajo de la obra">
         <header className="workspace-header">
-          <div className="brand-lockup">
-            <span className="brand-mark" aria-hidden="true">
-              H
-            </span>
-            <div>
-              <strong>H&amp;S Gestión</strong>
-              <span>Flujo vertical del piloto</span>
-            </div>
-          </div>
           <label className="actor-switcher">
             <span>Actuar como</span>
             <select
@@ -529,7 +431,6 @@ export function PilotWorkspace() {
 
         {!selectedId || !detail ? (
           <section className="welcome-panel">
-            <span className="welcome-panel__number">01</span>
             <p className="kicker">Punto de partida</p>
             <h1>
               {canCreateWorksite
@@ -538,9 +439,28 @@ export function PilotWorkspace() {
             </h1>
             <p>
               {canCreateWorksite
-                ? "Desde acá vas a recorrer contratistas, personal, vencimientos, maquinarias, auditoría y cierre independiente del desvío con datos persistentes."
-                : "Seleccioná una obra existente para continuar el recorrido operativo con datos persistentes."}
+                ? "Seleccioná una obra o creá una nueva para iniciar el piloto."
+                : "Seleccioná una obra para iniciar el recorrido operativo."}
             </p>
+            {worksites.length ? (
+              <div className="central-worksite-list">
+                <h2 className="kicker">Obras disponibles</h2>
+                {worksites.map((worksite) => (
+                  <button
+                    className="central-worksite-button"
+                    key={worksite.id}
+                    onClick={() => void selectWorksite(worksite.id)}
+                    type="button"
+                  >
+                    <span>
+                      <strong>{worksite.name}</strong>
+                      <small>{worksite.code} · {pilotLabel(worksite.status)}</small>
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {canCreateWorksite ? (
               <Card className="new-worksite-card">
                 <h2>Alta inicial</h2>
@@ -605,7 +525,7 @@ export function PilotWorkspace() {
         ) : (
           <>
             <div className="worksite-titlebar">
-              <div>
+            <div className="worksite-titlebar__identity">
                 <button
                   className="button button--quiet"
                   onClick={() => {
@@ -616,50 +536,16 @@ export function PilotWorkspace() {
                   }}
                   type="button"
                 >
-                  ← Volver a obras
+                  ← Obras
                 </button>
-                <p className="kicker">{detail.code}</p>
-                <h1>{detail.name}</h1>
-              </div>
-              <div className="titlebar-meta">
-                <span>
-                  Ubicación: {detail.country ?? "País no informado"} ·{" "}
-                  {detail.province ?? detail.jurisdiction} ·{" "}
-                  {detail.municipality ?? "Municipio no informado"}
-                </span>
-                <StatusBadge value={detail.status} />
-                <span>{totalRecords} registros de legajo</span>
+                <p className="kicker">Inicio</p>
+                <h1>Inicio</h1>
               </div>
             </div>
 
-            <nav
-              className="step-tabs"
-              aria-label="Etapas del flujo"
-              role="tablist"
-            >
-              {STEPS.map(([value, label], index) => (
-                <button
-                  aria-selected={step === value}
-                  className={step === value ? "is-active" : ""}
-                  key={value}
-                  onClick={() => setStep(value)}
-                  role="tab"
-                  type="button"
-                >
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  {label}
-                </button>
-              ))}
-            </nav>
-
             <div className="step-content" role="tabpanel">
               {step === "overview" ? (
-                <Overview
-                  detail={detail}
-                  role={role}
-                  onDownloadReport={() => void downloadReport()}
-                  onStep={setStep}
-                />
+                <Overview detail={detail} onStep={setStep} />
               ) : null}
               {step === "actors" ? (
                 <ResponsablesStep
@@ -849,67 +735,7 @@ export function PilotWorkspace() {
                 />
               ) : null}
               {step === "documents" ? (
-                <DocumentsStep
-                  detail={detail}
-                  busy={busy}
-                  canManage={canManageResources}
-                  onSubmit={(event) =>
-                    void submitForm(
-                      event,
-                      "document",
-                      `/worksites/${detail.id}/documents`,
-                      (form) => {
-                        const [subjectKind, subjectId] = fieldValue(
-                          form,
-                          "subject",
-                        ).split(":") as [DocumentSubjectKind, string];
-                        return {
-                          title: fieldValue(form, "title"),
-                          document_type: fieldValue(form, "document_type"),
-                          valid_from: optionalField(form, "valid_from"),
-                          expires_on: optionalField(form, "expires_on"),
-                          notes: optionalField(form, "notes"),
-                          subject_kind: subjectKind,
-                          subject_id: subjectId,
-                        };
-                      },
-                      "Documento registrado; su vigencia se recalculó.",
-                    )
-                  }
-                  onVersionSubmit={(event, documentId) =>
-                    void submitForm(
-                      event,
-                      `document-version-${documentId}`,
-                      `/worksites/${detail.id}/documents/${documentId}/versions`,
-                      (form) => ({
-                        title: fieldValue(form, "version_title"),
-                        document_type: fieldValue(
-                          form,
-                          "version_document_type",
-                        ),
-                        valid_from: optionalField(form, "version_valid_from"),
-                        expires_on: optionalField(form, "version_expires_on"),
-                        notes: optionalField(form, "version_notes"),
-                      }),
-                      "Nueva versión registrada; la vista actual fue actualizada.",
-                    )
-                  }
-                  onReview={
-                    canVerify
-                      ? (event, documentId) =>
-                          void submitForm(
-                            event,
-                            `document-review-${documentId}`,
-                            `/worksites/${detail.id}/documents/${documentId}/reviews`,
-                            (form) => ({
-                              result: fieldValue(form, "review_result"),
-                              foundation: fieldValue(form, "review_foundation"),
-                            }),
-                            "Revisión documental registrada con fundamento.",
-                          )
-                      : undefined
-                  }
-                />
+                <DocumentsStep detail={detail} actor={actor} />
               ) : null}
               {step === "machines" ? (
                 <MachinesStep
@@ -1115,26 +941,11 @@ export function PilotWorkspace() {
 
 function Overview({
   detail,
-  role,
   onStep,
-  onDownloadReport,
 }: {
   detail: WorksiteDetail;
-  role: string;
   onStep: (step: Step) => void;
-  onDownloadReport: () => void;
 }) {
-  const quickMetrics = [
-    ["contractors", "Contratistas", detail.contractors.length],
-    ["stages", "Etapas temporales", detail.stages.length],
-    ["people", "Personal", detail.people.length],
-    ["documents", "Documentos", detail.metrics.documents.total],
-    ["machines", "Maquinarias", detail.metrics.machines.total],
-    ["audit", "Auditorías", detail.audits.length],
-    ["followup", "Desvíos", detail.metrics.findings.total],
-  ] as const;
-  const controls = detail.metrics.controls;
-  const latestAudit = detail.metrics.latest_audit;
   const assignments = detail.functional_assignments ?? [];
   const hasPrincipal = detail.contractors.some(
     (item) => item.participation_type === "PRINCIPAL",
@@ -1142,283 +953,91 @@ function Overview({
   const hasProjectActors = ["RESPONSABLE_HYS_PROYECTO", "AUDITOR"].every(
     (code) => assignments.some((item) => item.function_code === code),
   );
-  const totalRecords =
-    detail.contractors.length +
-    detail.stages.length +
-    detail.people.length +
-    detail.documents.length +
-    detail.machines.length;
-  const needsOnboarding = !totalRecords || !hasPrincipal || !hasProjectActors;
-  const ratioLabel =
-    controls.ratio === null
-      ? "Aún no hay auditorías realizadas"
-      : `${Math.round(controls.ratio * 100)}%`;
+  const pendingDocuments =
+    detail.metrics.documents.by_status.FALTANTE +
+    detail.metrics.documents.by_status.PENDIENTE +
+    detail.metrics.documents.by_status.RECHAZADO +
+    detail.metrics.documents.by_status.POR_VENCER +
+    detail.metrics.documents.by_status.VENCIDO;
+  const actions = [
+    pendingDocuments
+      ? { step: "documents", label: "Revisar documentos pendientes", count: pendingDocuments }
+      : null,
+    !hasPrincipal || !hasProjectActors
+      ? { step: "actors", label: "Completar responsables", count: 1 }
+      : null,
+    detail.metrics.findings.by_status.ABIERTO
+      ? { step: "followup", label: "Registrar corrección", count: detail.metrics.findings.by_status.ABIERTO }
+      : null,
+    detail.metrics.findings.by_status.PENDIENTE_VERIFICACION
+      ? { step: "followup", label: "Verificar correcciones", count: detail.metrics.findings.by_status.PENDIENTE_VERIFICACION }
+      : null,
+    detail.metrics.machines.by_status.FUERA_DE_SERVICIO
+      ? { step: "machines", label: "Revisar maquinarias fuera de servicio", count: detail.metrics.machines.by_status.FUERA_DE_SERVICIO }
+      : null,
+  ].filter((item): item is { step: Step; label: string; count: number } => Boolean(item));
+  const alerts = [
+    detail.metrics.documents.by_status.VENCIDO
+      ? `${detail.metrics.documents.by_status.VENCIDO} documento(s) vencido(s)`
+      : null,
+    detail.metrics.findings.overdue
+      ? `${detail.metrics.findings.overdue} desvío(s) vencido(s)`
+      : null,
+    detail.metrics.machines.by_status.CON_OBSERVACIONES
+      ? `${detail.metrics.machines.by_status.CON_OBSERVACIONES} maquinaria(s) con observaciones`
+      : null,
+  ].filter((item): item is string => Boolean(item));
   return (
-    <section>
-      <div className="section-heading">
-        <div>
-          <p className="kicker">Estado de la obra</p>
-          <h2>
-            {role === "AUDITOR"
-              ? "Revisión y auditoría"
-              : role === "CONTRATISTA"
-                ? "Supervisión organizacional"
-                : "Recorrido operativo"}
-          </h2>
-        </div>
-        <p>
-          Un corte sintético de los registros visibles. Cada panel abre el
-          detalle que lo respalda.
-        </p>
-      </div>
-      <p className="dashboard-callout">
-        {role === "AUDITOR"
-          ? "Priorizá documentación pendiente, habilitaciones y verificaciones."
-          : role === "CONTRATISTA"
-            ? "Vista de lectura: revisá estado, vencimientos, desvíos y reportes."
-            : "Priorizá vencimientos, correcciones y registros pendientes."}
-      </p>
-      {needsOnboarding ? (
-        <Card className="onboarding-card">
-          <p className="kicker">Siguiente paso</p>
-          <h3>Configurá esta obra antes de operar</h3>
-          <p>
-            {totalRecords
-              ? "Completá las responsabilidades y registros que faltan para que el flujo sea accionable."
-              : "La obra está creada sin registros heredados. Seguí este recorrido para preparar un legajo trazable."}
-          </p>
-          <ol className="onboarding-list">
-            <li>
-              <button onClick={() => onStep("overview")} type="button">
-                Configurar responsables y actores H&amp;S
-              </button>
-            </li>
-            {!hasProjectActors ? (
-              <li>
-                <button onClick={() => onStep("actors")} type="button">
-                  Asignar responsables y Auditor
-                </button>
-              </li>
-            ) : null}
-            <li>
-              <button onClick={() => onStep("contractors")} type="button">
-                Registrar contratista principal
-              </button>
-            </li>
-            <li>
-              <button onClick={() => onStep("stages")} type="button">
-                Definir etapa inicial
-              </button>
-            </li>
-            <li>
-              <button onClick={() => onStep("people")} type="button">
-                Incorporar personal
-              </button>
-            </li>
-            <li>
-              <button onClick={() => onStep("documents")} type="button">
-                Preparar documentación
-              </button>
-            </li>
-          </ol>
-        </Card>
-      ) : null}
-      <div className="metric-grid">
-        {quickMetrics.map(([target, label, value], index) => (
-          <button key={target} onClick={() => onStep(target)} type="button">
-            <span>{String(index + 1).padStart(2, "0")}</span>
-            <strong>{value}</strong>
-            <small>{label}</small>
-          </button>
-        ))}
-      </div>
-      <Card className="priority-card">
-        <p className="kicker">Prioridades</p>
-        <ul className="priority-list">
-          {detail.metrics.documents.by_status.VENCIDO ? (
-            <li>
-              {detail.metrics.documents.by_status.VENCIDO} documento(s)
-              vencido(s) requieren acción.
-              <button onClick={() => onStep("documents")} type="button">
-                Revisar documentación
-              </button>
-            </li>
-          ) : null}
-          {detail.metrics.findings.by_status.ABIERTO ||
-          detail.metrics.findings.by_status.EN_CORRECCION ? (
-            <li>
-              {detail.metrics.findings.by_status.ABIERTO +
-                detail.metrics.findings.by_status.EN_CORRECCION}{" "}
-              desvío(s) abiertos requieren seguimiento.
-              <button onClick={() => onStep("followup")} type="button">
-                Ver seguimiento
-              </button>
-            </li>
-          ) : null}
-          {detail.metrics.findings.by_status.PENDIENTE_VERIFICACION ? (
-            <li>
-              {detail.metrics.findings.by_status.PENDIENTE_VERIFICACION}{" "}
-              corrección(es) esperan verificación.
-              <button onClick={() => onStep("followup")} type="button">
-                Verificar correcciones
-              </button>
-            </li>
-          ) : null}
-          {detail.metrics.machines.by_status.FUERA_DE_SERVICIO ? (
-            <li>
-              {detail.metrics.machines.by_status.FUERA_DE_SERVICIO}{" "}
-              maquinaria(s) fuera de servicio requieren inspección.
-              <button onClick={() => onStep("machines")} type="button">
-                Revisar maquinarias
-              </button>
-            </li>
-          ) : null}
-          {!hasPrincipal || !hasProjectActors ? (
-            <li>
-              Faltan responsabilidades o contratista principal para operar la
-              obra.
+    <section className="overview-screen">
+      <div className="overview-priority-grid">
+        <Card className="priority-card primary-actions-card">
+          <div className="dashboard-panel__header">
+            <div>
+              <p className="kicker">Trabajo actual</p>
+              <h2>Próximas acciones</h2>
+            </div>
+          </div>
+
+          {actions.length ? <div className="action-grid">
+            {actions.map(({ step, label, count }) => (
               <button
-                onClick={() =>
-                  onStep(!hasProjectActors ? "actors" : "contractors")
-                }
+                className="action-tile"
+                key={step}
+                onClick={() => onStep(step as Step)}
                 type="button"
               >
-                Completar configuración
-              </button>
-            </li>
-          ) : null}
-          {!detail.metrics.documents.by_status.VENCIDO &&
-          !detail.metrics.findings.by_status.ABIERTO &&
-          !detail.metrics.findings.by_status.EN_CORRECCION &&
-          !detail.metrics.findings.by_status.PENDIENTE_VERIFICACION &&
-          !detail.metrics.machines.by_status.FUERA_DE_SERVICIO &&
-          hasPrincipal &&
-          hasProjectActors ? (
-            <li>No hay prioridades críticas pendientes en este corte.</li>
-          ) : null}
-        </ul>
-      </Card>
-      <div className="dashboard-grid">
-        <DashboardPanel
-          eyebrow="01 · Legajo"
-          onStep={onStep}
-          target="documents"
-          title="Documentación"
-        >
-          <p className="dashboard-total">
-            <strong>{detail.metrics.documents.total}</strong> documentos
-            visibles
-          </p>
-          <DashboardStatusList
-            counts={detail.metrics.documents.by_status}
-            statuses={DOCUMENT_STATUS_LABELS}
-          />
-          {!detail.metrics.documents.total ? (
-            <EmptyState>No hay documentos registrados en esta obra.</EmptyState>
-          ) : null}
-        </DashboardPanel>
-
-        <DashboardPanel
-          eyebrow="02 · Seguimiento"
-          onStep={onStep}
-          target="followup"
-          title="Desvíos"
-        >
-          <p className="dashboard-total">
-            <strong>{detail.metrics.findings.total}</strong> desvíos visibles
-          </p>
-          <DashboardStatusList
-            counts={detail.metrics.findings.by_status}
-            statuses={FINDING_STATUS_LABELS}
-          />
-          <p className="dashboard-callout">
-            Vencidos sin cerrar:{" "}
-            <strong>{detail.metrics.findings.overdue}</strong>
-          </p>
-          {!detail.metrics.findings.total ? (
-            <EmptyState>No hay desvíos registrados en esta obra.</EmptyState>
-          ) : null}
-        </DashboardPanel>
-
-        <DashboardPanel
-          eyebrow="03 · Activos"
-          onStep={onStep}
-          target="machines"
-          title="Maquinarias"
-        >
-          <p className="dashboard-total">
-            <strong>{detail.metrics.machines.total}</strong> maquinarias
-            visibles
-          </p>
-          <DashboardStatusList
-            counts={detail.metrics.machines.by_status}
-            statuses={MACHINE_STATUS_LABELS}
-          />
-          {!detail.metrics.machines.total ? (
-            <EmptyState>No hay maquinarias asignadas a esta obra.</EmptyState>
-          ) : null}
-        </DashboardPanel>
-
-        <DashboardPanel
-          eyebrow="04 · Auditoría"
-          onStep={onStep}
-          target="audit"
-          title="Última auditoría y controles"
-        >
-          {latestAudit ? (
-            <div className="dashboard-audit">
-              <strong>{pilotLabel(latestAudit.status)}</strong>
-              <span>Iniciada {formatDateTime(latestAudit.started_at)}</span>
-              {latestAudit.finalized_at ? (
-                <span>
-                  Finalizada {formatDateTime(latestAudit.finalized_at)}
+                <span className="action-tile__count" aria-hidden="true">
+                  {count}
                 </span>
-              ) : null}
-            </div>
-          ) : (
-            <EmptyState>No hay auditorías registradas en esta obra.</EmptyState>
-          )}
-          <div className="control-ratio">
+                <span className="action-tile__copy">
+                  <strong>{label}</strong>
+                </span>
+                <span className="action-tile__chevron" aria-hidden="true">
+                  →
+                </span>
+              </button>
+            ))}
+          </div> : <p className="empty-state">No hay acciones pendientes.</p>}
+        </Card>
+        <Card className="priority-card priority-card--attention">
+          <div className="dashboard-panel__header">
             <div>
-              <span>Resultado de controles evaluados</span>
-              <strong>{ratioLabel}</strong>
+              <p className="kicker">Excepciones</p>
+              <h2>Alertas</h2>
             </div>
-            <p>
-              {controls.numerator} cumplen / {controls.denominator} evaluados
-            </p>
+            <span>{alerts.length}</span>
           </div>
-          <p className="dashboard-legend">
-            Excluye &quot;No aplica&quot; ({controls.excluded.no_aplica}) y
-            &quot;No verificado&quot; ({controls.excluded.no_verificado}). Sólo
-            usa controles registrados de la última auditoría visible.
-          </p>
-        </DashboardPanel>
+          {alerts.length ? (
+            <ul className="priority-list">
+              {alerts.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No hay alertas activas.</p>
+          )}
+        </Card>
       </div>
-      <p className="dashboard-footnote">
-        Corte sintético calculado {formatDateTime(detail.metrics.calculated_at)}{" "}
-        · los contadores reconcilian con las pestañas de detalle.
-      </p>
-      <Card className="scope-card">
-        <div>
-          <StatusBadge value="ALCANCE PILOTO" />
-          <h3>Cierre operativo verificable</h3>
-          <p>
-            Este corte llega hasta una auditoría <strong>finalizada</strong> y
-            un desvío <strong>cerrado</strong> por un Responsable H&amp;S
-            independiente.
-          </p>
-        </div>
-        <p className="scope-card__aside">
-          <button
-            className="button button--dark"
-            onClick={onDownloadReport}
-            type="button"
-          >
-            Descargar PDF
-          </button>
-          Informe sintético generado sin archivos binarios ni datos reales.
-        </p>
-      </Card>
     </section>
   );
 }
@@ -1899,6 +1518,7 @@ interface StepProps {
   detail: WorksiteDetail;
   busy: string | null;
   canManage: boolean;
+  onStep?: (step: Step) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onInspection?: (event: FormEvent<HTMLFormElement>, machineId: string) => void;
   onValidate?: (
@@ -1913,6 +1533,263 @@ interface StepProps {
     event: FormEvent<HTMLFormElement>,
     documentId: string,
   ) => void;
+}
+
+type TechnicalFileComponent = {
+  name: string;
+  terms: readonly string[];
+  keyLabel?: string;
+};
+
+type TechnicalFileSection = {
+  title: string;
+  components: readonly TechnicalFileComponent[];
+};
+
+const TECHNICAL_FILE_SECTIONS: readonly TechnicalFileSection[] = [
+  {
+    title: "Habilitaciones y ART",
+    components: [
+      { name: "Aviso de Obra", terms: ["aviso de obra"] },
+      { name: "RAR", terms: ["rar"] },
+      {
+        name: "Entrega de credenciales",
+        terms: ["entrega de credenciales", "credenciales"],
+      },
+      { name: "Visitas ART", terms: ["visitas art", "visita art"] },
+    ],
+  },
+  {
+    title: "Gestión H&S",
+    components: [
+      { name: "Programa de Seguridad", terms: ["programa de seguridad"] },
+      { name: "Capacitaciones", terms: ["capacitaciones", "capacitación"] },
+      {
+        name: "Matrícula del Licenciado H&S responsable",
+        terms: ["matrícula", "matricula", "licenciado h&s"],
+      },
+      {
+        name: "Carga horaria semanal",
+        terms: ["carga horaria", "horaria semanal"],
+      },
+    ],
+  },
+  {
+    title: "Documentación técnica",
+    components: [
+      {
+        name: "Memoria descriptiva de la obra",
+        terms: ["memoria descriptiva"],
+      },
+      { name: "Plano de obrador", terms: ["plano de obrador", "obrador"] },
+    ],
+  },
+  {
+    title: "Controles y condiciones",
+    components: [
+      { name: "Puesta a tierra", terms: ["puesta a tierra"] },
+      {
+        name: "Registro de visitas del Licenciado H&S de la Contratista Principal",
+        terms: ["registro de visitas", "visitas del licenciado"],
+      },
+    ],
+  },
+];
+
+const AUXILIARY_SERVICES: readonly TechnicalFileComponent[] = [
+  { name: "Baños", terms: ["baños", "banos"] },
+  { name: "Vestuario", terms: ["vestuario"] },
+  { name: "Comedor", terms: ["comedor"] },
+  {
+    name: "Tablero eléctrico",
+    terms: ["tablero eléctrico", "tablero electrico"],
+  },
+  { name: "Extintores", terms: ["extintores", "extintor"] },
+];
+
+type ProjectFileComponent = TechnicalFileComponent & {
+  action: "Completar" | "Adjuntar";
+};
+
+const PROJECT_FILE_COMPONENTS: readonly ProjectFileComponent[] = [
+  {
+    name: "Memoria descriptiva H&S",
+    terms: ["memoria descriptiva"],
+    action: "Completar",
+  },
+  {
+    name: "Riesgos por etapa",
+    terms: ["identificación de peligros", "evaluación de riesgos", "iper"],
+    action: "Completar",
+  },
+  {
+    name: "Medidas preventivas previstas",
+    terms: ["medidas preventivas", "plan de emergencias", "emergencias"],
+    action: "Completar",
+  },
+  {
+    name: "Programa de Seguridad de Proyecto",
+    terms: ["programa de seguridad"],
+    action: "Completar",
+  },
+  {
+    name: "Planos H&S de Proyecto",
+    terms: [
+      "plano de implantación",
+      "plano de implantacion",
+      "plano de obrador",
+      "obrador",
+    ],
+    action: "Adjuntar",
+  },
+];
+
+function documentForComponent(
+  documents: WorksiteDetail["documents"],
+  component: TechnicalFileComponent,
+) {
+  return documents.find((document) => {
+    const searchable =
+      `${document.title} ${document.document_type}`.toLowerCase();
+    return component.terms.some((term) => searchable.includes(term));
+  });
+}
+
+function TechnicalFileRow({
+  component,
+  document,
+  canEdit,
+}: {
+  component: TechnicalFileComponent;
+  document?: WorksiteDetail["documents"][number];
+  canEdit: boolean;
+}) {
+  const keyData = document?.expires_on
+    ? `Vence ${formatDate(document.expires_on)}`
+    : document
+      ? `Versión ${document.version}`
+      : "Sin información cargada";
+
+  return (
+    <li className="technical-file-row">
+      <div className="technical-file-row__name">
+        <strong>{component.name}</strong>
+      </div>
+      <StatusBadge value={document?.status ?? "PENDIENTE"} />
+      <span className="technical-file-row__key">{keyData}</span>
+      {canEdit ? (
+        <button
+          className="button button--quiet technical-file-row__action"
+          type="button"
+        >
+          {document ? "Actualizar" : "Cargar"}
+        </button>
+      ) : null}
+    </li>
+  );
+}
+
+function ProjectFileComponentCard({
+  component,
+  document,
+  canEdit,
+}: {
+  component: ProjectFileComponent;
+  document?: WorksiteDetail["documents"][number];
+  canEdit: boolean;
+}) {
+  return (
+    <Card className="technical-file-section">
+      <div className="technical-file-section__heading">
+        <h3>{component.name}</h3>
+        {canEdit ? (
+          <button className="button button--quiet" type="button">
+            {component.action}
+          </button>
+        ) : null}
+      </div>
+      {document ? <small>Documento cargado: {document.title}</small> : null}
+      {component.name === "Programa de Seguridad de Proyecto" ? (
+        canEdit ? (
+          <div className="form-grid">
+            <label>
+              Auditor asignado
+              <input defaultValue="Sin asignar" />
+            </label>
+            <label>
+              Profesión del auditor
+              <input defaultValue="Sin especificar" />
+            </label>
+            <label>
+              Carga horaria semanal del auditor
+              <input defaultValue="Sin especificar" />
+            </label>
+          </div>
+        ) : (
+          <dl className="form-grid">
+            <div>
+              <dt>Auditor asignado</dt>
+              <dd>Sin asignar</dd>
+            </div>
+            <div>
+              <dt>Profesión del auditor</dt>
+              <dd>Sin especificar</dd>
+            </div>
+            <div>
+              <dt>Carga horaria semanal del auditor</dt>
+              <dd>Sin especificar</dd>
+            </div>
+          </dl>
+        )
+      ) : null}
+    </Card>
+  );
+}
+
+function AuxiliaryServiceRow({
+  component,
+  available,
+  canEdit,
+  onChange,
+}: {
+  component: TechnicalFileComponent;
+  available: boolean | null;
+  canEdit: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <li className="technical-file-row technical-file-row--auxiliary">
+      <div className="technical-file-row__name">
+        <strong>{component.name}</strong>
+      </div>
+      {canEdit ? (
+        <div
+          aria-label={`${component.name}: presencia o disponibilidad`}
+          className="availability-control"
+          role="group"
+        >
+          {[true, false].map((value) => {
+            const label = value ? "Sí" : "No";
+            return (
+              <label key={label}>
+                <input
+                  checked={available === value}
+                  name={`auxiliary-${component.name}`}
+                  onChange={() => onChange(value)}
+                  type="radio"
+                />
+                <span>{label}</span>
+              </label>
+            );
+          })}
+        </div>
+      ) : (
+        <span className="availability-value">
+          {available === null ? "Sin seleccionar" : available ? "Sí" : "No"}
+        </span>
+      )}
+    </li>
+  );
 }
 
 function ContractorsStep({ detail, busy, canManage, onSubmit }: StepProps) {
@@ -2132,235 +2009,220 @@ function PeopleStep({
 
 function DocumentsStep({
   detail,
-  busy,
-  canManage,
-  onSubmit,
-  onVersionSubmit,
-  onReview,
-}: StepProps) {
-  const subjects = [
-    { value: `WORKSITE:${detail.id}`, label: `Obra · ${detail.name}` },
-    ...detail.contractors.map((item) => ({
-      value: `CONTRACTOR:${item.id}`,
-      label: `Contratista · ${item.legal_name}`,
-    })),
-    ...detail.people.map((item) => ({
-      value: `PERSON:${item.id}`,
-      label: `Persona · ${item.display_name}`,
-    })),
-    ...detail.machines.map((item) => ({
-      value: `MACHINE:${item.id}`,
-      label: `Máquina · ${item.internal_code}`,
-    })),
-  ];
+  actor,
+}: {
+  detail: WorksiteDetail;
+  actor: PilotActor;
+}) {
+  const [view, setView] = useState<"index" | "technical-file" | "project-file">(
+    "index",
+  );
+  const principalContractor = detail.contractors.find(
+    (item) => item.participation_type === "PRINCIPAL",
+  );
+  const technicalDocuments = detail.documents.filter(
+    (item) =>
+      item.subject_kind === "CONTRACTOR" &&
+      item.subject_id === principalContractor?.id,
+  );
+  const projectDocuments = detail.documents.filter(
+    (item) => item.subject_kind === "WORKSITE" && item.subject_id === detail.id,
+  );
+  const canEditPrincipalFile = PRINCIPAL_TECHNICAL_FILE_EDITORS.includes(actor);
+  const canEditProjectFile = PROJECT_TECHNICAL_FILE_EDITORS.includes(actor);
+  const [availability, setAvailability] = useState<
+    Record<string, boolean | null>
+  >(() =>
+    Object.fromEntries(AUXILIARY_SERVICES.map((item) => [item.name, null])),
+  );
+  const documentCounts = technicalDocuments.reduce<Record<string, number>>(
+    (counts, item) => {
+      counts[item.status] = (counts[item.status] ?? 0) + 1;
+      return counts;
+    },
+    {},
+  );
+  const attentionCount =
+    (documentCounts.VENCIDO ?? 0) +
+    (documentCounts.RECHAZADO ?? 0) +
+    (documentCounts.OBSERVADO ?? 0);
+  const expiringCount = documentCounts.POR_VENCER ?? 0;
+  const fileStatus = attentionCount
+    ? "Requiere atención"
+    : expiringCount
+      ? "Por vencer"
+      : technicalDocuments.length
+        ? "Documentación vigente"
+        : "Sin documentación";
+  const fileStatusTone = attentionCount
+    ? "VENCIDO"
+    : expiringCount
+      ? "POR_VENCER"
+      : technicalDocuments.length
+        ? "VIGENTE"
+        : "PENDIENTE";
+
+  if (view === "index") {
+    return (
+      <section>
+        <StepHeading
+          eyebrow="05 · Legajos Técnicos"
+          title="Legajos Técnicos"
+          text="Accedé a los dos legajos técnicos que organizan la documentación de la obra."
+        />
+        <div className="documentation-index">
+          <Card className="documentation-entry documentation-entry--primary">
+            <div className="documentation-entry__number">01</div>
+            <div>
+              <p className="kicker">Empresa principal</p>
+              <h3>Legajo Técnico - Contratista Principal</h3>
+              <div className="technical-file-status">
+                <StatusBadge value={fileStatusTone} />
+                <strong>{fileStatus}</strong>
+              </div>
+              <p>
+                Documentación propia de la empresa principal, con su estado de
+                vigencia y seguimiento.
+              </p>
+              {principalContractor ? (
+                <small>Asociado a {principalContractor.legal_name}</small>
+              ) : null}
+            </div>
+            <button
+              className="button button--primary"
+              onClick={() => setView("technical-file")}
+              type="button"
+            >
+              Ver legajo
+            </button>
+          </Card>
+
+          <Card className="documentation-entry documentation-entry--project">
+            <div className="documentation-entry__number">02</div>
+            <div>
+              <p className="kicker">Alcance de la obra</p>
+              <h3>Legajo Técnico - Proyecto</h3>
+              <p>
+                Documentación que debe reunirse y revisar antes del inicio de la
+                obra.
+              </p>
+            </div>
+            <button
+              className="button button--dark"
+              onClick={() => setView("project-file")}
+              type="button"
+            >
+              Ver legajo
+            </button>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
+  if (view === "project-file") {
+    return (
+      <section>
+        <div className="documentation-detail-heading">
+          <button
+            className="button button--quiet"
+            onClick={() => setView("index")}
+            type="button"
+          >
+            ← Volver a legajos técnicos
+          </button>
+          <StepHeading
+            eyebrow="02 · Legajo Técnico - Proyecto"
+            title="Legajo Técnico - Proyecto"
+            text="Completá y revisá la documentación necesaria para habilitar el inicio de la obra."
+          />
+          {!canEditProjectFile ? (
+            <PermissionCopy text="Modo consulta: este perfil puede revisar el legajo del proyecto, pero no editarlo." />
+          ) : null}
+        </div>
+        <div className="technical-file-sections">
+          {PROJECT_FILE_COMPONENTS.map((component) => (
+            <ProjectFileComponentCard
+              key={component.name}
+              component={component}
+              document={documentForComponent(projectDocuments, component)}
+              canEdit={canEditProjectFile}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section>
-      <StepHeading
-        eyebrow="05 · Vigencias"
-        title="Documentación"
-        text="Se guardan metadatos y el sujeto explícito. La vigencia se deriva cada vez que abrís la obra."
-      />
-      <Card>
-        <h3>Registrar documento</h3>
-        <form className="form-grid form-grid--wide" onSubmit={onSubmit}>
-          <Field label="Título">
-            <input
-              name="title"
-              required
-              placeholder="Seguro técnico sintético"
-            />
-          </Field>
-          <Field label="Tipo">
-            <input name="document_type" required placeholder="SEGURO" />
-          </Field>
-          <Field label="Sujeto">
-            <select name="subject" required>
-              {subjects.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <p className="permission-note">
-            Todo documento nuevo queda pendiente hasta una revisión separada.
-          </p>
-          <Field label="Vigente desde">
-            <input name="valid_from" type="date" />
-          </Field>
-          <Field label="Vence el">
-            <input name="expires_on" type="date" />
-          </Field>
-          <Field label="Nota sintética">
-            <input name="notes" placeholder="Referencia interna, sin archivo" />
-          </Field>
-          <button
-            className="button button--primary"
-            disabled={busy !== null || !canManage}
-          >
-            Guardar documento
-          </button>
-        </form>
-        {!canManage ? <PermissionCopy /> : null}
-      </Card>
-      <div className="card-grid">
-        {detail.documents.map((item) => (
-          <Card key={item.id}>
-            <div className="card-topline">
-              <span>
-                {item.document_type} · Versión {item.version}
-              </span>
-              <StatusBadge value={item.status} />
+      <div className="documentation-detail-heading">
+        <button
+          className="button button--quiet"
+          onClick={() => setView("index")}
+          type="button"
+        >
+          ← Volver a legajos técnicos
+        </button>
+        <StepHeading
+          eyebrow="01 · Legajo Técnico - Contratista Principal"
+          title="Legajo Técnico - Contratista Principal"
+          text="Estructura de documentación, habilitaciones y condiciones de la Contratista Principal."
+        />
+        {!canEditPrincipalFile ? (
+          <PermissionCopy text="Modo consulta: este perfil puede revisar el legajo de la Contratista Principal, pero no editarlo." />
+        ) : null}
+      </div>
+      <div className="technical-file-sections">
+        {TECHNICAL_FILE_SECTIONS.map((section) => (
+          <Card key={section.title} className="technical-file-section">
+            <div className="technical-file-section__heading">
+              <h3>{section.title}</h3>
+              <span>{section.components.length} componentes</span>
             </div>
-            <h3>{item.title}</h3>
-            <p className="muted">{item.subject_name ?? item.subject_kind}</p>
-            <dl className="compact-details">
-              <div>
-                <dt>Revisión</dt>
-                <dd>{pilotLabel(item.review_status)}</dd>
-              </div>
-              <div>
-                <dt>Vencimiento</dt>
-                <dd>{formatDate(item.expires_on)}</dd>
-              </div>
-            </dl>
-            <p className="muted">
-              Cargado por {item.uploaded_by?.slice(0, 8) ?? "actor sintético"}
-              {item.uploaded_at ? ` · ${formatDateTime(item.uploaded_at)}` : ""}
-            </p>
-            {item.reviews?.length ? (
-              <details className="document-history">
-                <summary>Revisiones ({item.reviews.length})</summary>
-                <ul className="document-history__list">
-                  {item.reviews.map((review) => (
-                    <li key={review.id}>
-                      <strong>{pilotLabel(review.result)}</strong>
-                      <span>{review.foundation}</span>
-                      <small>
-                        {review.reviewer_function} ·{" "}
-                        {formatDateTime(review.reviewed_at)}
-                      </small>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            <details className="document-history">
-              <summary>Historial ({item.versions.length} versiones)</summary>
-              {item.versions.length ? (
-                <ol className="document-history__list">
-                  {item.versions.map((version) => (
-                    <li key={version.id}>
-                      <div>
-                        <strong>
-                          Versión {version.version_number} · {version.title}
-                        </strong>
-                        <span>
-                          {version.document_type} ·{" "}
-                          {pilotLabel(version.review_status)}
-                        </span>
-                      </div>
-                      <small>
-                        {formatDate(version.valid_from)} →{" "}
-                        {formatDate(version.expires_on)} ·{" "}
-                        {formatDateTime(version.created_at)}
-                        {" · Actor "}
-                        {version.actor_id.slice(0, 8)}
-                      </small>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <EmptyState>No hay historial disponible.</EmptyState>
-              )}
-            </details>
-            {onVersionSubmit ? (
-              <details className="document-version-form">
-                <summary>Registrar nueva versión</summary>
-                <form
-                  className="form-grid form-grid--wide"
-                  onSubmit={(event) => onVersionSubmit(event, item.id)}
-                >
-                  <Field label="Título de la versión">
-                    <input
-                      name="version_title"
-                      required
-                      placeholder="Seguro técnico actualizado"
-                    />
-                  </Field>
-                  <Field label="Tipo de la versión">
-                    <input
-                      name="version_document_type"
-                      required
-                      placeholder="SEGURO"
-                    />
-                  </Field>
-                  <p className="permission-note">
-                    La nueva versión también requiere revisión independiente.
-                  </p>
-                  <Field label="Vigente desde">
-                    <input name="version_valid_from" type="date" />
-                  </Field>
-                  <Field label="Vence el">
-                    <input name="version_expires_on" type="date" />
-                  </Field>
-                  <Field label="Nota sintética">
-                    <input
-                      name="version_notes"
-                      placeholder="Referencia interna, sin archivo"
-                    />
-                  </Field>
-                  <button
-                    className="button button--dark form-action"
-                    disabled={
-                      busy !== null ||
-                      !canManage ||
-                      busy === `document-version-${item.id}`
-                    }
-                  >
-                    {busy === `document-version-${item.id}`
-                      ? "Registrando…"
-                      : "Registrar versión"}
-                  </button>
-                </form>
-                {!canManage ? <PermissionCopy /> : null}
-              </details>
-            ) : null}
-            {onReview ? (
-              <details className="document-version-form">
-                <summary>Revisar documento</summary>
-                <form
-                  className="form-grid form-grid--wide"
-                  onSubmit={(event) => onReview(event, item.id)}
-                >
-                  <Field label="Resultado">
-                    <select name="review_result" defaultValue="APROBADO">
-                      <option value="APROBADO">Aprobado</option>
-                      <option value="OBSERVADO">Observado</option>
-                      <option value="RECHAZADO">Rechazado</option>
-                    </select>
-                  </Field>
-                  <Field label="Fundamento">
-                    <textarea name="review_foundation" required />
-                  </Field>
-                  <button
-                    className="button button--dark form-action"
-                    disabled={busy !== null}
-                  >
-                    Registrar revisión
-                  </button>
-                </form>
-              </details>
-            ) : null}
+            <ul className="technical-file-list">
+              {section.components.map((component) => (
+                <TechnicalFileRow
+                  key={component.name}
+                  component={component}
+                  document={documentForComponent(technicalDocuments, component)}
+                  canEdit={
+                    canEditPrincipalFile &&
+                    (!PRINCIPAL_TECHNICAL_FILE_LICENSED_ONLY.has(
+                      component.name,
+                    ) ||
+                      actor === "licenciado-contratista-principal")
+                  }
+                />
+              ))}
+              {section.title === "Controles y condiciones" ? (
+                <li className="technical-file-subsection">
+                  <div className="technical-file-subsection__heading">
+                    <strong>Servicios auxiliares del obrador</strong>
+                    <span>Presencia o disponibilidad</span>
+                  </div>
+                  <ul className="technical-file-list technical-file-list--nested">
+                    {AUXILIARY_SERVICES.map((component) => (
+                      <AuxiliaryServiceRow
+                        key={component.name}
+                        component={component}
+                        available={availability[component.name] ?? null}
+                        canEdit={canEditPrincipalFile}
+                        onChange={(value) =>
+                          setAvailability((current) => ({
+                            ...current,
+                            [component.name]: value,
+                          }))
+                        }
+                      />
+                    ))}
+                  </ul>
+                </li>
+              ) : null}
+            </ul>
           </Card>
         ))}
       </div>
-      {!detail.documents.length ? (
-        <EmptyState>
-          No hay documentos. Probá una fecha pasada y otra dentro de 30 días
-          para validar los estados.
-        </EmptyState>
-      ) : null}
     </section>
   );
 }
@@ -2652,14 +2514,14 @@ function AuditStep({
     auditAssignments[0]?.id ?? "",
   );
   return (
-    <section>
+    <section className="audit-screen">
       <StepHeading
         eyebrow="07 · Campo"
         title="Auditoría"
         text="El checklist es sintético y online. Un resultado no conforme crea el desvío de forma atómica."
       />
       {!audit || audit.status === "FINALIZADA" ? (
-        <Card className="action-card">
+        <Card className="action-card audit-start-card">
           <div>
             <h3>Iniciar una auditoría</h3>
             <p>Fija obra, auditoría asignada y catálogo sintético publicado.</p>
@@ -2693,7 +2555,7 @@ function AuditStep({
         </Card>
       ) : null}
       {detail.audits.length ? (
-        <Card>
+        <Card className="audit-history-card">
           <ListHeading count={detail.audits.length}>
             Historial de auditorías
           </ListHeading>
@@ -2720,7 +2582,7 @@ function AuditStep({
         <PermissionCopy text="Cambiá a Auditor o Responsable H&S para operar la auditoría." />
       ) : null}
       {audit ? (
-        <Card>
+        <Card className="audit-active-card">
           <div className="audit-heading">
             <div>
               <p className="kicker">Auditoría {audit.id.slice(0, 8)}</p>

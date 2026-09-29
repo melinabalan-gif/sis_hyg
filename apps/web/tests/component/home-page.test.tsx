@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import HomePage from "../../app/page";
@@ -165,7 +171,7 @@ describe("HomePage", () => {
       }),
     ).toBeVisible();
     expect(
-      await screen.findByText(/no hay obras disponibles para abrir/i),
+      await screen.findByText(/seleccioná una obra para iniciar/i),
     ).toBeVisible();
     expect(screen.getByLabelText(/actuar como/i)).toHaveValue("tecnico");
   });
@@ -290,7 +296,7 @@ describe("HomePage", () => {
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.click(
-      await screen.findByRole("tab", { name: /02.*responsables/i }),
+      await screen.findByRole("tab", { name: /responsables/i }),
     );
 
     expect(
@@ -307,6 +313,281 @@ describe("HomePage", () => {
     expect(
       screen.queryByRole("button", { name: "Cambiar auditor" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("muestra los dos legajos técnicos sin formulario genérico", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+        return jsonResponse(detail);
+      }
+      if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
+      throw new Error(`Ruta inesperada: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /obr-001/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/actuar como/i),
+      "responsable",
+    );
+    await user.click(
+      await screen.findByRole("tab", { name: /legajos técnicos/i }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Legajos Técnicos" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: "Legajo Técnico - Contratista Principal",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Legajo Técnico - Proyecto" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Ver legajo" })).toHaveLength(
+      2,
+    );
+    expect(
+      screen.getByText(/documentación propia de la empresa principal/i),
+    ).toBeVisible();
+    expect(screen.getAllByText("Pendiente")).toHaveLength(1);
+    expect(screen.getByText("Sin documentación")).toBeVisible();
+    expect(
+      screen.queryByText("Asociado conceptualmente a la Contratista Principal"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Documentación de contratistas" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tipo")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Sujeto")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/la vigencia se deriva/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[1]);
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Legajo Técnico - Proyecto",
+      }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Auditor asignado")).toBeEnabled();
+    expect(screen.getByLabelText("Profesión del auditor")).toBeEnabled();
+    expect(
+      screen.getByLabelText("Carga horaria semanal del auditor"),
+    ).toBeEnabled();
+    for (const component of [
+      "Memoria descriptiva H&S",
+      "Riesgos por etapa",
+      "Medidas preventivas previstas",
+      "Programa de Seguridad de Proyecto",
+      "Planos H&S de Proyecto",
+    ]) {
+      expect(screen.getByRole("heading", { name: component })).toBeVisible();
+    }
+    expect(screen.getAllByRole("button", { name: "Completar" })).toHaveLength(
+      4,
+    );
+    expect(screen.getByRole("button", { name: "Adjuntar" })).toBeVisible();
+    expect(screen.queryByText(/pendiente/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/documentos requeridos/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/documentos cargados/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/estado del legajo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/progreso/i)).not.toBeInTheDocument();
+    for (const oldTitle of [
+      "Información del proyecto",
+      "Planificación H&S",
+      "Implantación y servicios",
+      "Autorizaciones y condiciones de inicio",
+    ]) {
+      expect(screen.queryByText(oldTitle)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /volver a legajos/i }));
+    await user.selectOptions(screen.getByLabelText(/actuar como/i), "tecnico");
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[1]);
+    for (const label of [
+      "Auditor asignado",
+      "Profesión del auditor",
+      "Carga horaria semanal del auditor",
+    ]) {
+      expect(screen.getByText(label, { selector: "dt" })).toBeVisible();
+    }
+    expect(screen.getAllByText("Sin especificar")).toHaveLength(2);
+    expect(screen.getByText("Sin asignar")).toBeVisible();
+    expect(screen.queryByLabelText("Auditor asignado")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Profesión del auditor"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Carga horaria semanal del auditor"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /volver a legajos/i }));
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[0]);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Legajo Técnico - Contratista Principal",
+      }),
+    ).toBeVisible();
+    for (const component of [
+      "Aviso de Obra",
+      "RAR",
+      "Entrega de credenciales",
+      "Visitas ART",
+      "Programa de Seguridad",
+      "Capacitaciones",
+      "Matrícula del Licenciado H&S responsable",
+      "Carga horaria semanal",
+      "Memoria descriptiva de la obra",
+      "Plano de obrador",
+      "Puesta a tierra",
+      "Registro de visitas del Licenciado H&S de la Contratista Principal",
+      "Servicios auxiliares del obrador",
+      "Baños",
+      "Vestuario",
+      "Comedor",
+      "Tablero eléctrico",
+      "Extintores",
+    ]) {
+      expect(screen.getAllByText(component)[0]).toBeVisible();
+    }
+    const auxiliarySection = screen
+      .getByText("Servicios auxiliares del obrador")
+      .closest("li");
+    expect(auxiliarySection).toBeInTheDocument();
+    expect(auxiliarySection).not.toHaveTextContent("Pendiente");
+    expect(auxiliarySection).not.toHaveTextContent("Sin información cargada");
+    expect(auxiliarySection).not.toHaveTextContent("Cargar");
+    expect(screen.getAllByText("Presencia o disponibilidad")).toHaveLength(1);
+    expect(
+      auxiliarySection?.querySelectorAll('input[type="radio"]'),
+    ).toHaveLength(10);
+    expect(
+      screen
+        .getAllByRole("radio")
+        .every((radio) => !(radio as HTMLInputElement).checked),
+    ).toBe(true);
+    expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Resumen preparado para una futura acción"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen
+        .getByText("Matrícula del Licenciado H&S responsable")
+        .closest("li"),
+    ).not.toHaveTextContent("Cargar");
+    expect(
+      screen.getByText("Carga horaria semanal", { exact: true }).closest("li"),
+    ).not.toHaveTextContent("Cargar");
+  });
+
+  it("permite cambiar la disponibilidad de servicios auxiliares al equipo H&S de la contratista principal", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+        return jsonResponse(detail);
+      }
+      if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
+      throw new Error(`Ruta inesperada: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /obr-001/i }));
+    await user.click(
+      await screen.findByRole("tab", { name: /legajos técnicos/i }),
+    );
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[0]);
+
+    const bathrooms = screen.getByRole("group", {
+      name: "Baños: presencia o disponibilidad",
+    });
+    await user.click(within(bathrooms).getByRole("radio", { name: "Sí" }));
+    expect(within(bathrooms).getByRole("radio", { name: "Sí" })).toBeChecked();
+  });
+
+  it("mantiene los servicios auxiliares en solo lectura para Auditor", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+          return jsonResponse(detail);
+        }
+        if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
+        throw new Error(`Ruta inesperada: ${path}`);
+      }),
+    );
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /obr-001/i }));
+    await user.selectOptions(screen.getByLabelText(/actuar como/i), "auditor");
+    await user.click(
+      await screen.findByRole("tab", { name: /legajos técnicos/i }),
+    );
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[0]);
+
+    expect(
+      screen.queryByRole("group", {
+        name: "Baños: presencia o disponibilidad",
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("Sin seleccionar")).toHaveLength(5);
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  it("separa la edición del legajo de proyecto y el de la contratista principal", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+          return jsonResponse(detail);
+        }
+        if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
+        throw new Error(`Ruta inesperada: ${path}`);
+      }),
+    );
+    const user = userEvent.setup();
+
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /obr-001/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/actuar como/i),
+      "responsable",
+    );
+    await user.click(
+      await screen.findByRole("tab", { name: /legajos técnicos/i }),
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[1]);
+    expect(screen.getAllByRole("button", { name: "Completar" })).toHaveLength(
+      4,
+    );
+    expect(screen.getByRole("button", { name: "Adjuntar" })).toBeVisible();
+    expect(screen.queryByText(/modo consulta/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /volver a legajos/i }));
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[0]);
+    expect(
+      screen.queryByRole("button", { name: "Completar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Adjuntar" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/modo consulta/i)).toBeVisible();
   });
 
   it("abre un formulario específico y cambia un responsable sin formulario genérico", async () => {
@@ -344,7 +625,7 @@ describe("HomePage", () => {
       "responsable",
     );
     await user.click(
-      await screen.findByRole("tab", { name: /02.*responsables/i }),
+      await screen.findByRole("tab", { name: /responsables/i }),
     );
     await user.click(screen.getByRole("button", { name: "Cambiar auditor" }));
 
@@ -396,7 +677,7 @@ describe("HomePage", () => {
       await screen.findByLabelText(/actuar como/i),
       "responsable",
     );
-    await screen.findByText(/creá la primera obra sintética/i);
+    await screen.findByText(/creá o abrí una obra/i);
     await user.type(screen.getByLabelText("Código"), "OBR-001");
     await user.type(screen.getByLabelText("Nombre"), "Obra Piloto Norte");
     await user.type(screen.getByLabelText("País"), "Argentina");
@@ -407,14 +688,14 @@ describe("HomePage", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "Obra Piloto Norte",
+        name: "Inicio",
       }),
     ).toBeVisible();
     expect(screen.getByText(/obra creada y abierta/i)).toBeVisible();
-    expect(screen.getByText(/no hay documentos registrados/i)).toBeVisible();
-    expect(screen.getByText("Aún no hay auditorías realizadas")).toBeVisible();
-    expect(screen.getByText(/no hay auditorías registradas/i)).toBeVisible();
-    await user.click(screen.getByRole("tab", { name: /04.*contratistas/i }));
+    expect(screen.getByText("Próximas acciones")).toBeVisible();
+    expect(screen.getByText("Alertas")).toBeVisible();
+    expect(screen.queryByText("Acciones principales")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /contratistas/i }));
     expect(
       screen.getByRole("heading", { level: 2, name: "Contratistas" }),
     ).toBeVisible();
@@ -479,31 +760,19 @@ describe("HomePage", () => {
 
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
-
+    expect(screen.getByText("Alertas")).toBeVisible();
     expect(
-      screen.getByText(
-        (_content, element) =>
-          element?.textContent?.replace(/\s+/g, " ").trim() ===
-          "2 documentos visibles",
-      ),
+      screen.getByRole("button", { name: /revisar documentos pendientes/i }),
     ).toBeVisible();
-    expect(
-      screen.getByText(
-        (_content, element) =>
-          element?.textContent?.replace(/\s+/g, " ").trim() ===
-          "Vencidos sin cerrar: 1",
-      ),
-    ).toBeVisible();
-    expect(screen.getByText("Aún no hay auditorías realizadas")).toBeVisible();
-    expect(
-      screen.getByText(/excluye "no aplica" \(2\) y "no verificado" \(1\)/i),
-    ).toBeVisible();
-
     await user.click(
-      screen.getAllByRole("button", { name: /ver detalle/i })[0],
+      screen.getByRole("button", { name: /revisar documentos pendientes/i }),
     );
+
     expect(
-      screen.getByRole("heading", { level: 2, name: "Documentación" }),
+      await screen.findByRole("heading", { name: /legajos técnicos/i }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Legajos Técnicos" }),
     ).toBeVisible();
   });
 
@@ -528,7 +797,7 @@ describe("HomePage", () => {
       await screen.findByLabelText(/actuar como/i),
       "responsable",
     );
-    await screen.findByText(/creá la primera obra sintética/i);
+    await screen.findByText(/creá o abrí una obra/i);
     await user.type(screen.getByLabelText("Código"), "OBR-001");
     await user.type(screen.getByLabelText("Nombre"), "Duplicada");
     await user.type(screen.getByLabelText("País"), "Argentina");
@@ -603,7 +872,7 @@ describe("HomePage", () => {
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.selectOptions(screen.getByLabelText(/actuar como/i), "auditor");
     await user.click(
-      await screen.findByRole("tab", { name: /08.*auditoría/i }),
+      await screen.findByRole("tab", { name: /auditoría/i }),
     );
 
     expect(screen.getByText("Circulación sintética")).toBeVisible();
@@ -662,7 +931,7 @@ describe("HomePage", () => {
 
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
-    await user.click(await screen.findByRole("tab", { name: /03.*etapas/i }));
+    await user.click(await screen.findByRole("tab", { name: /etapas/i }));
 
     const codeFields = screen.getAllByLabelText("Código");
     const nameFields = screen.getAllByLabelText("Nombre");
@@ -686,7 +955,7 @@ describe("HomePage", () => {
     expect(screen.getByText("2", { selector: ".counter" })).toBeVisible();
   });
 
-  it("muestra historial y registra una nueva versión manteniendo la obra", async () => {
+  it("muestra la estructura del legajo aunque exista documentación previa", async () => {
     const documentId = "70000000-0000-0000-0000-000000000001";
     let currentDocument = {
       id: documentId,
@@ -746,7 +1015,24 @@ describe("HomePage", () => {
           return jsonResponse(currentDocument, 201);
         }
         if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
-          return jsonResponse({ ...detail, documents: [currentDocument] });
+          return jsonResponse({
+            ...detail,
+            contractors: [
+              {
+                id: "12000000-0000-0000-0000-000000000001",
+                legal_name: "Contratista principal sintética",
+                trade: "Construcción",
+                participation_type: "PRINCIPAL",
+              },
+            ],
+            documents: [
+              {
+                ...currentDocument,
+                subject_kind: "CONTRACTOR",
+                subject_id: "12000000-0000-0000-0000-000000000001",
+              },
+            ],
+          });
         }
         if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
         throw new Error(`Ruta inesperada: ${path}`);
@@ -758,31 +1044,17 @@ describe("HomePage", () => {
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.click(
-      await screen.findByRole("tab", { name: /06.*documentación/i }),
+      await screen.findByRole("tab", { name: /legajos técnicos/i }),
     );
+    await user.click(screen.getAllByRole("button", { name: "Ver legajo" })[0]);
 
-    expect(screen.getAllByText(/versión 1/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("Historial (1 versiones)")).toBeVisible();
-    await user.type(
-      screen.getByLabelText("Título de la versión"),
-      "Seguro renovado",
-    );
-    await user.type(screen.getByLabelText("Tipo de la versión"), "SEGURO");
-    await user.type(screen.getAllByLabelText("Vence el").at(-1)!, "2026-12-31");
-    await user.type(
-      screen.getAllByLabelText("Nota sintética").at(-1)!,
-      "Renovación",
-    );
-    await user.click(
-      screen.getByRole("button", { name: /registrar versión/i }),
-    );
-
-    expect(await screen.findByText(/nueva versión registrada/i)).toBeVisible();
-    expect(screen.getAllByText(/versión 2/i).length).toBeGreaterThan(0);
-    expect(fetchMock).toHaveBeenCalledWith(
-      `/api/v1/worksites/${worksite.id}/documents/${documentId}/versions`,
-      expect.objectContaining({ method: "POST" }),
-    );
+    expect(screen.getAllByText("Pendiente")[0]).toBeVisible();
+    expect(
+      screen.queryByLabelText("Título de la versión"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /registrar versión/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("muestra el historial de maquinarias y registra una reinspección", async () => {
@@ -865,7 +1137,7 @@ describe("HomePage", () => {
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.click(
-      await screen.findByRole("tab", { name: /07.*maquinarias/i }),
+      await screen.findByRole("tab", { name: /maquinarias/i }),
     );
 
     expect(
