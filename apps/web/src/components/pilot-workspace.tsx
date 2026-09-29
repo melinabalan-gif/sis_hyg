@@ -538,8 +538,12 @@ export function PilotWorkspace() {
                 >
                   ← Obras
                 </button>
-                <p className="kicker">Inicio</p>
-                <h1>Inicio</h1>
+                {step === "overview" ? (
+                  <>
+                    <p className="kicker">Inicio</p>
+                    <h1>Inicio</h1>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -3084,7 +3088,6 @@ function FollowupStep({
 }
 
 function StepHeading({
-  eyebrow,
   title,
   text,
 }: {
@@ -3095,7 +3098,6 @@ function StepHeading({
   return (
     <div className="section-heading">
       <div>
-        <p className="kicker">{eyebrow}</p>
         <h2>{title}</h2>
       </div>
       <p>{text}</p>
