@@ -2974,7 +2974,7 @@ function FollowupStep({
                 Enviar a verificación
               </button>
             ) : null}
-            {finding.status === "PENDIENTE_VERIFICACION" ? (
+            {finding.status === "PENDIENTE_VERIFICACION" && canVerify ? (
               <form
                 className="verification-form"
                 onSubmit={(event) => onVerify(event, finding)}
@@ -3000,13 +3000,10 @@ function FollowupStep({
                 </Field>
                 <button
                   className="button button--primary"
-                  disabled={busy !== null || !canVerify}
+                  disabled={busy !== null}
                 >
                   Registrar verificación
                 </button>
-                {!canVerify ? (
-                  <small>Cambiá a Responsable H&amp;S.</small>
-                ) : null}
               </form>
             ) : null}
             {finding.status === "CERRADO" ? (
