@@ -2290,6 +2290,314 @@ summary:focus-visible {
   }
 }
 
+/* Technical files: document-led composition for the pilot. */
+.step-content:has(.documentation-index),
+.step-content:has(.documentation-detail-heading) {
+  padding-top: 18px;
+}
+
+.step-content:has(.documentation-index) .section-heading,
+.step-content:has(.documentation-detail-heading) .section-heading {
+  align-items: flex-start;
+  max-width: 930px;
+  margin-bottom: 28px;
+  padding: 6px 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.step-content:has(.documentation-index) .section-heading h2,
+.step-content:has(.documentation-detail-heading) .section-heading h2 {
+  max-width: 620px;
+  font-size: clamp(2.2rem, 4vw, 3.7rem);
+  letter-spacing: -0.065em;
+}
+
+.step-content:has(.documentation-index) .section-heading > p,
+.step-content:has(.documentation-detail-heading) .section-heading > p {
+  max-width: 330px;
+  padding-top: 8px;
+  color: var(--ink-500);
+  font-size: 0.82rem;
+}
+
+.documentation-index {
+  width: min(100%, 980px);
+  gap: 14px;
+}
+
+.documentation-entry {
+  position: relative;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 24px;
+  min-height: 208px;
+  padding: 30px 32px;
+  overflow: hidden;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.documentation-entry::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--line-strong);
+}
+
+.documentation-entry--primary::before {
+  background: var(--teal-600);
+}
+
+.documentation-entry--project::before {
+  background: var(--navy-800);
+}
+
+.documentation-entry:hover {
+  border-color: #9fc9c3;
+  box-shadow: 0 14px 34px rgb(11 36 56 / 8%);
+  transform: translateY(-2px);
+}
+
+.documentation-entry__number {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background: var(--navy-900);
+  border-radius: 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.documentation-entry--primary .documentation-entry__number {
+  background: var(--teal-700);
+}
+
+.documentation-entry h3 {
+  max-width: 620px;
+  margin-bottom: 10px;
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  letter-spacing: -0.035em;
+}
+
+.documentation-entry p:not(.kicker) {
+  max-width: 590px;
+  margin-bottom: 14px;
+  font-size: 0.84rem;
+}
+
+.technical-file-status {
+  margin: 12px 0 13px;
+}
+
+.technical-file-status strong {
+  color: var(--ink-700);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.documentation-entry > .button {
+  min-width: 126px;
+  align-self: end;
+}
+
+.documentation-detail-heading {
+  width: min(100%, 1080px);
+  margin-bottom: 30px;
+}
+
+.documentation-detail-heading > .button {
+  margin-bottom: 24px;
+  color: var(--ink-700);
+  border-color: transparent;
+}
+
+.documentation-detail-heading .section-heading {
+  max-width: none;
+  margin-bottom: 0;
+}
+
+.documentation-detail-heading .permission-note {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  color: var(--amber-700);
+  background: var(--amber-100);
+  border: 1px solid #ecd99b;
+  border-radius: 9px;
+}
+
+.technical-file-sections {
+  width: min(100%, 1080px);
+  gap: 14px;
+}
+
+.technical-file-section {
+  padding: 0 24px;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgb(11 36 56 / 4%);
+}
+
+.technical-file-section__heading {
+  min-height: 64px;
+  margin: 0 -24px;
+  padding: 0 24px;
+  background: linear-gradient(90deg, #f4f8f8, #ffffff);
+  border-bottom-color: #cbd9db;
+}
+
+.technical-file-section__heading h3 {
+  color: var(--navy-800);
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+}
+
+.technical-file-section__heading span {
+  padding: 5px 8px;
+  color: var(--teal-700);
+  background: var(--teal-100);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.technical-file-row {
+  min-height: 66px;
+  grid-template-columns: minmax(220px, 1.3fr) auto minmax(150px, 0.75fr) auto;
+  gap: 18px;
+  padding: 12px 0;
+}
+
+.technical-file-row__name strong {
+  font-size: 0.79rem;
+}
+
+.technical-file-row__key {
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+.technical-file-row__action {
+  min-width: 82px;
+  color: var(--teal-700);
+  border-color: #c8dedb;
+}
+
+.technical-file-subsection {
+  margin: 12px 0 14px;
+  padding: 0 14px;
+  background: #f7faf9;
+  border: 1px solid #dce9e6;
+  border-radius: 10px;
+}
+
+.technical-file-subsection__heading {
+  min-height: 42px;
+  margin: 0;
+  padding: 0;
+}
+
+.technical-file-subsection__heading strong {
+  color: var(--ink-700);
+  font-size: 0.73rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.availability-control {
+  padding: 4px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.availability-control label {
+  min-height: 25px;
+  padding: 0 7px;
+  border-radius: 999px;
+}
+
+.availability-control label:has(input:checked) {
+  color: var(--teal-700);
+  background: var(--teal-100);
+  font-weight: 800;
+}
+
+@media (max-width: 840px) {
+  .documentation-entry {
+    min-height: 0;
+    padding: 24px;
+  }
+
+  .documentation-entry > .button {
+    align-self: start;
+  }
+
+  .technical-file-section {
+    padding-inline: 18px;
+  }
+
+  .technical-file-section__heading {
+    margin-inline: -18px;
+    padding-inline: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .step-content:has(.documentation-index),
+  .step-content:has(.documentation-detail-heading) {
+    padding-top: 8px;
+  }
+
+  .step-content:has(.documentation-index) .section-heading,
+  .step-content:has(.documentation-detail-heading) .section-heading {
+    gap: 8px;
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+  }
+
+  .step-content:has(.documentation-index) .section-heading h2,
+  .step-content:has(.documentation-detail-heading) .section-heading h2 {
+    font-size: 2.35rem;
+  }
+
+  .step-content:has(.documentation-index) .section-heading > p,
+  .step-content:has(.documentation-detail-heading) .section-heading > p {
+    max-width: none;
+    padding-top: 0;
+  }
+
+  .documentation-entry {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 16px;
+    padding: 22px 20px;
+  }
+
+  .documentation-entry__number {
+    width: 36px;
+    height: 36px;
+    font-size: 0.65rem;
+  }
+
+  .documentation-entry > .button {
+    grid-column: 2;
+    width: 100%;
+  }
+
+  .technical-file-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .technical-file-row__key {
+    text-align: left;
+  }
+
+  .technical-file-row__action {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
