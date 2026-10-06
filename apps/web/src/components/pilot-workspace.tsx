@@ -28,7 +28,7 @@ import {
 
 const STEPS = [
   ["overview", "Inicio"],
-  ["actors", "RESPONSABLES"],
+  ["actors", "Responsables"],
   ["stages", "Etapas"],
   ["contractors", "Contratistas"],
   ["people", "Personal"],
@@ -270,13 +270,9 @@ export function PilotWorkspace() {
     setNotice(null);
     try {
       const created = await postPilot<WorksiteSummary>("/worksites", actor, {
-        code: fieldValue(form, "code"),
-        name: fieldValue(form, "name"),
-        country: fieldValue(form, "country"),
-        province: fieldValue(form, "province"),
-        municipality: fieldValue(form, "municipality"),
-        jurisdiction: fieldValue(form, "jurisdiction"),
-      });
+name: fieldValue(form, "name"),
+address: fieldValue(form, "address"),
+});
       await loadList(actor);
       setSelectedId(created.id);
       await loadDetail(created.id, actor);
@@ -346,10 +342,26 @@ export function PilotWorkspace() {
 
   return (
     <div className="pilot-layout">
+      <a className="skip-link" href="#main-content">
+        Saltar al contenido principal
+      </a>
       <aside className="worksite-rail" aria-label="Navegación principal">
         <div className="rail-brand">
-          <span className="brand-mark" aria-hidden="true">H&amp;S</span>
-          <strong>H&amp;S Gestión</strong>
+          <svg
+              className="brand-symbol"
+              viewBox="0 0 40 40"
+              aria-hidden="true"
+            >
+              <path className="brand-symbol__h" d="M7 7v26M18 7v26M7 20h11" />
+              <path
+                className="brand-symbol__s"
+                d="M32 10c-2-2.2-4.3-3.2-7-3.2-3.8 0-6.3 1.9-6.3 4.9 0 3.1 2.7 4.1 6.3 5.2 3.8 1.1 6.6 2.4 6.6 6.4 0 4.1-3.3 7-8.1 7-3.5 0-6.5-1.3-8.7-3.8"
+              />
+            </svg>
+          <span>
+            <strong>H&amp;S Gestión</strong>
+            <small>Piloto operativo</small>
+          </span>
         </div>
         <button
           className={`rail-home ${!selectedId ? "is-active" : ""}`}
@@ -366,19 +378,31 @@ export function PilotWorkspace() {
         </button>
 
         {selectedId && detail ? (
-          <nav className="worksite-nav" aria-label="Navegación de la obra activa">
+          <nav
+            className="worksite-nav"
+            aria-label="Navegación de la obra activa"
+          >
             <div className="worksite-nav__heading">
               <div>
                 <p className="kicker">Obra activa</p>
                 <strong>{detail.name}</strong>
-                <small>{detail.code} · {pilotLabel(detail.status)}</small>
+                <small>
+                  {detail.code} · {pilotLabel(detail.status)}
+                </small>
               </div>
             </div>
-            <div className="worksite-nav__items" role="tablist">
+            <p className="worksite-nav__label">Módulos de la obra</p>
+            <div
+              className="worksite-nav__items"
+              role="tablist"
+              aria-label="Módulos de la obra"
+            >
               {STEPS.map(([value, label]) => (
                 <button
+                  aria-controls={`panel-${value}`}
                   aria-selected={step === value}
                   className={step === value ? "is-active" : ""}
+                  id={`tab-${value}`}
                   key={value}
                   onClick={() => setStep(value)}
                   role="tab"
@@ -392,7 +416,13 @@ export function PilotWorkspace() {
         ) : null}
       </aside>
 
-      <section className="workspace" aria-label="Espacio de trabajo de la obra">
+      <section
+        className="workspace"
+        id="main-content"
+        aria-label="Espacio de trabajo de la obra"
+        aria-busy={loading}
+        tabIndex={-1}
+      >
         <header className="workspace-header">
           <label className="actor-switcher">
             <span>Actuar como</span>
@@ -454,7 +484,9 @@ export function PilotWorkspace() {
                   >
                     <span>
                       <strong>{worksite.name}</strong>
-                      <small>{worksite.code} · {pilotLabel(worksite.status)}</small>
+                      <small>
+                        {worksite.code} · {pilotLabel(worksite.status)}
+                      </small>
                     </span>
                     <span aria-hidden="true">→</span>
                   </button>
@@ -472,15 +504,7 @@ export function PilotWorkspace() {
                   className="form-grid form-grid--wide"
                   onSubmit={(event) => void createWorksite(event)}
                 >
-                  <Field label="Código">
-                    <input
-                      name="code"
-                      placeholder="OBRA-001"
-                      required
-                      maxLength={64}
-                    />
-                  </Field>
-                  <Field label="Nombre">
+                  <Field label="Nombre de fantasía">
                     <input
                       name="name"
                       placeholder="Ampliación planta piloto"
@@ -488,30 +512,14 @@ export function PilotWorkspace() {
                       maxLength={200}
                     />
                   </Field>
-                  <Field label="País">
-                    <input
-                      name="country"
-                      placeholder="Argentina"
-                      required
-                      maxLength={120}
-                    />
-                  </Field>
-                  <Field label="Provincia">
-                    <input
-                      name="province"
-                      placeholder="Provincia sintética"
-                      required
-                      maxLength={120}
-                    />
-                  </Field>
-                  <Field label="Municipio">
-                    <input
-                      name="municipality"
-                      placeholder="Municipio sintético"
-                      required
-                      maxLength={120}
-                    />
-                  </Field>
+                <Field label="Dirección">
+                  <input
+                    name="address"
+                    placeholder="Ej. Ayacucho 1250"
+                    required
+                    maxLength={240}
+                  />
+                </Field>
                   <button
                     className="button button--primary form-action"
                     disabled={busy !== null}
@@ -525,9 +533,9 @@ export function PilotWorkspace() {
         ) : (
           <>
             <div className="worksite-titlebar">
-            <div className="worksite-titlebar__identity">
+              <div className="worksite-titlebar__identity">
                 <button
-                  className="button button--quiet"
+                  className="button button--quiet back-button"
                   onClick={() => {
                     setSelectedId(null);
                     setSelectedAuditId(null);
@@ -536,7 +544,7 @@ export function PilotWorkspace() {
                   }}
                   type="button"
                 >
-                  ← Obras
+                  ← Volver a obras
                 </button>
                 {step === "overview" ? (
                   <>
@@ -547,9 +555,15 @@ export function PilotWorkspace() {
               </div>
             </div>
 
-            <div className="step-content" role="tabpanel">
+            <div
+              className="step-content"
+              id={`panel-${step}`}
+              aria-labelledby={`tab-${step}`}
+              role="tabpanel"
+              tabIndex={0}
+            >
               {step === "overview" ? (
-                <Overview detail={detail} onStep={setStep} />
+                <Overview detail={detail} actor={actor} onStep={setStep} />
               ) : null}
               {step === "actors" ? (
                 <ResponsablesStep
@@ -945,107 +959,271 @@ export function PilotWorkspace() {
 
 function Overview({
   detail,
+  actor,
   onStep,
 }: {
   detail: WorksiteDetail;
+  actor: PilotActor;
   onStep: (step: Step) => void;
 }) {
   const assignments = detail.functional_assignments ?? [];
+
   const hasPrincipal = detail.contractors.some(
     (item) => item.participation_type === "PRINCIPAL",
   );
-  const hasProjectActors = ["RESPONSABLE_HYS_PROYECTO", "AUDITOR"].every(
-    (code) => assignments.some((item) => item.function_code === code),
+
+  const hasProjectResponsible = assignments.some(
+    (item) => item.function_code === "RESPONSABLE_HYS_PROYECTO",
   );
+
+  const hasAuditor = assignments.some(
+    (item) => item.function_code === "AUDITOR",
+  );
+
+  const hasStages = detail.stages.length > 0;
+
+  const hasProjectFile = detail.documents.some(
+    (item) =>
+      item.subject_kind === "WORKSITE" &&
+      item.subject_id === detail.id,
+  );
+
   const pendingDocuments =
     detail.metrics.documents.by_status.FALTANTE +
     detail.metrics.documents.by_status.PENDIENTE +
     detail.metrics.documents.by_status.RECHAZADO +
     detail.metrics.documents.by_status.POR_VENCER +
     detail.metrics.documents.by_status.VENCIDO;
-  const actions = [
-    pendingDocuments
-      ? { step: "documents", label: "Revisar documentos pendientes", count: pendingDocuments }
-      : null,
-    !hasPrincipal || !hasProjectActors
-      ? { step: "actors", label: "Completar responsables", count: 1 }
-      : null,
-    detail.metrics.findings.by_status.ABIERTO
-      ? { step: "followup", label: "Registrar corrección", count: detail.metrics.findings.by_status.ABIERTO }
-      : null,
-    detail.metrics.findings.by_status.PENDIENTE_VERIFICACION
-      ? { step: "followup", label: "Verificar correcciones", count: detail.metrics.findings.by_status.PENDIENTE_VERIFICACION }
-      : null,
-    detail.metrics.machines.by_status.FUERA_DE_SERVICIO
-      ? { step: "machines", label: "Revisar maquinarias fuera de servicio", count: detail.metrics.machines.by_status.FUERA_DE_SERVICIO }
-      : null,
-  ].filter((item): item is { step: Step; label: string; count: number } => Boolean(item));
-  const alerts = [
-    detail.metrics.documents.by_status.VENCIDO
-      ? `${detail.metrics.documents.by_status.VENCIDO} documento(s) vencido(s)`
-      : null,
-    detail.metrics.findings.overdue
-      ? `${detail.metrics.findings.overdue} desvío(s) vencido(s)`
-      : null,
-    detail.metrics.machines.by_status.CON_OBSERVACIONES
-      ? `${detail.metrics.machines.by_status.CON_OBSERVACIONES} maquinaria(s) con observaciones`
-      : null,
-  ].filter((item): item is string => Boolean(item));
-  return (
-    <section className="overview-screen">
-      <div className="overview-priority-grid">
+
+  const openFindings =
+    detail.metrics.findings.by_status.ABIERTO +
+    detail.metrics.findings.by_status.PENDIENTE_VERIFICACION;
+
+  const machineIssues =
+    detail.metrics.machines.by_status.FUERA_DE_SERVICIO +
+    detail.metrics.machines.by_status.CON_OBSERVACIONES;
+
+  const hasOperationalActivity =
+    detail.people.length > 0 ||
+    detail.metrics.findings.total > 0 ||
+    detail.metrics.machines.total > 0 ||
+    detail.metrics.latest_audit !== null ||
+    detail.contractors.some(
+      (item) => item.participation_type !== "PRINCIPAL",
+    );
+
+  if (!hasOperationalActivity) {
+    const setupItems: {
+      label: string;
+      status: string;
+      ready: boolean;
+      step: Step;
+      action: string;
+      visible: boolean;
+    }[] = [
+      {
+        label: "Responsable H&S del proyecto",
+        status: hasProjectResponsible ? "Configurado" : "Falta configurar",
+        ready: hasProjectResponsible,
+        step: "actors",
+        action: "Configurar",
+        visible: actor === "responsable" || actor === "contratista-principal",
+      },
+      {
+        label: "Contratista principal",
+        status: hasPrincipal ? "Registrado" : "Sin registrar",
+        ready: hasPrincipal,
+        step: "contractors",
+        action: "Registrar",
+        visible:
+          actor === "responsable" ||
+          actor === "licenciado-contratista-principal" ||
+          actor === "tecnico" ||
+          actor === "contratista-principal",
+      },
+      {
+        label: "Etapas de obra",
+        status: hasStages ? "Definidas" : "Sin definir",
+        ready: hasStages,
+        step: "stages",
+        action: "Definir etapas",
+        visible:
+          actor === "responsable" ||
+          actor === "licenciado-contratista-principal" ||
+          actor === "tecnico",
+      },
+      {
+        label: "Legajo Técnico de Proyecto",
+        status: hasProjectFile ? "Iniciado" : "Sin completar",
+        ready: hasProjectFile,
+        step: "documents",
+        action: "Abrir legajo",
+        visible: actor === "responsable",
+      },
+      {
+        label: "Auditor",
+        status: hasAuditor ? "Asignado" : "Sin asignar",
+        ready: hasAuditor,
+        step: "actors",
+        action: "Asignar",
+        visible: actor === "responsable",
+      },
+    ];
+
+    return (
+      <section className="overview-screen">
         <Card className="priority-card primary-actions-card">
           <div className="dashboard-panel__header">
             <div>
-              <p className="kicker">Trabajo actual</p>
-              <h2>Próximas acciones</h2>
+              <p className="kicker">Puesta en marcha</p>
+              <h2>Prepará la obra para comenzar</h2>
             </div>
           </div>
 
-          {actions.length ? <div className="action-grid">
-            {actions.map(({ step, label, count }) => (
-              <button
-                className="action-tile"
-                key={step}
-                onClick={() => onStep(step as Step)}
-                type="button"
-              >
-                <span className="action-tile__count" aria-hidden="true">
-                  {count}
-                </span>
+          <p className="muted">
+            Completá la configuración inicial necesaria para comenzar la gestión
+            operativa de la obra.
+          </p>
+
+          <div className="action-grid">
+            {setupItems.map((item) => (
+              <div className="action-tile" key={item.label}>
                 <span className="action-tile__copy">
-                  <strong>{label}</strong>
+                  <strong>{item.label}</strong>
+                  <small>{item.status}</small>
                 </span>
-                <span className="action-tile__chevron" aria-hidden="true">
-                  →
-                </span>
-              </button>
+
+                {!item.ready && item.visible ? (
+                  <button
+                    className="button button--quiet"
+                    onClick={() => onStep(item.step)}
+                    type="button"
+                  >
+                    {item.action} →
+                  </button>
+                ) : (
+                  <span className={item.ready ? "setup-owner setup-owner--ready" : "setup-owner"}>{item.ready ? "✓ Completo" : "A cargo del proyecto"}</span>
+                )}
+              </div>
             ))}
-          </div> : <p className="empty-state">No hay acciones pendientes.</p>}
+          </div>
         </Card>
+      </section>
+    );
+  }
+
+  return (
+    <section className="overview-screen">
+      <Card className="priority-card primary-actions-card">
+        <div className="dashboard-panel__header">
+          <div>
+            <p className="kicker">Estado de la obra</p>
+            <h2>Resumen operativo</h2>
+          </div>
+        </div>
+
+        <div className="action-grid">
+          <button
+            className="action-tile"
+            onClick={() => onStep("contractors")}
+            type="button"
+          >
+            <span className="action-tile__copy">
+              <strong>Contratistas</strong>
+              <small>{detail.contractors.length} registrados</small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </button>
+
+          <button
+            className="action-tile"
+            onClick={() => onStep("people")}
+            type="button"
+          >
+            <span className="action-tile__copy">
+              <strong>Personal</strong>
+              <small>{detail.people.length} personas registradas</small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </button>
+
+          <button
+            className="action-tile"
+            onClick={() => onStep("documents")}
+            type="button"
+          >
+            <span className="action-tile__copy">
+              <strong>Documentación</strong>
+              <small>
+                {pendingDocuments
+                  ? `${pendingDocuments} requieren atención`
+                  : "Sin pendientes"}
+              </small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </button>
+
+          <button
+            className="action-tile"
+            onClick={() => onStep("followup")}
+            type="button"
+          >
+            <span className="action-tile__copy">
+              <strong>Desvíos</strong>
+              <small>
+                {openFindings
+                  ? `${openFindings} abiertos o por verificar`
+                  : "Sin pendientes"}
+              </small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </button>
+
+          <button
+            className="action-tile"
+            onClick={() => onStep("machines")}
+            type="button"
+          >
+            <span className="action-tile__copy">
+              <strong>Maquinarias</strong>
+              <small>
+                {machineIssues
+                  ? `${machineIssues} requieren atención`
+                  : "Sin observaciones"}
+              </small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </Card>
+
+      {(pendingDocuments > 0 || openFindings > 0 || machineIssues > 0) && (
         <Card className="priority-card priority-card--attention">
           <div className="dashboard-panel__header">
             <div>
-              <p className="kicker">Excepciones</p>
-              <h2>Alertas</h2>
+              <p className="kicker">Requiere intervención</p>
+              <h2>Pendientes</h2>
             </div>
-            <span>{alerts.length}</span>
           </div>
-          {alerts.length ? (
-            <ul className="priority-list">
-              {alerts.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>No hay alertas activas.</p>
-          )}
+
+          <ul className="priority-list">
+            {pendingDocuments > 0 ? (
+              <li>{pendingDocuments} documento(s) requieren revisión.</li>
+            ) : null}
+
+            {openFindings > 0 ? (
+              <li>{openFindings} desvío(s) requieren seguimiento.</li>
+            ) : null}
+
+            {machineIssues > 0 ? (
+              <li>{machineIssues} maquinaria(s) requieren atención.</li>
+            ) : null}
+          </ul>
         </Card>
-      </div>
+      )}
     </section>
   );
 }
-
 type ResponsibilityCode =
   | "RESPONSABLE_HYS_PROYECTO"
   | "AUDITOR"
@@ -1073,8 +1251,8 @@ const RESPONSIBILITIES: Array<{
   },
   {
     code: "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
-    title: "Técnico H&S de contratista principal",
-    action: "Cambiar técnico",
+    title: "T├®cnico H&S de contratista principal",
+    action: "Cambiar t├®cnico",
     profession: "TECNICO_HYS",
   },
 ];

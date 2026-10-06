@@ -234,19 +234,34 @@ class PilotService:
 
     async def create_worksite(self, payload: WorksiteCreate) -> WorksiteSummary:
         self._require_worksite_create()
+        existing_codes = (
+            await self.session.execute(
+                select(Worksite.code).where(
+                    Worksite.organization_id == PILOT_ORGANIZATION_ID,
+                    Worksite.code.like("OBRA-%"),
+                )
+            )
+        ).scalars().all()
+
+        sequence = max(
+            (
+                int(code.removeprefix("OBRA-"))
+                for code in existing_codes
+                if code.removeprefix("OBRA-").isdigit()
+            ),
+            default=0,
+        )
+        generated_code = payload.code or f"OBRA-{sequence + 1:03d}"
+
         worksite = Worksite(
             organization_id=PILOT_ORGANIZATION_ID,
-            code=payload.code,
+            code=generated_code,
             name=payload.name,
+            address=payload.address,
             country=payload.country,
             province=payload.province,
             municipality=payload.municipality,
-            jurisdiction=payload.jurisdiction
-            or "/".join(
-                value
-                for value in (payload.country, payload.province, payload.municipality)
-                if value
-            ),
+            jurisdiction=payload.jurisdiction or "SIN_ESPECIFICAR",
             created_by_actor_id=self.context.actor.id,
         )
         self.session.add(worksite)

@@ -136,20 +136,14 @@ REQUIRED_MACHINE_CHECKLIST_KEYS = frozenset(item.value for item in MachineCheckl
 
 
 class WorksiteCreate(StrictSchema):
-    code: Code
+    code: Code | None = None
     name: ShortText
+    address: ShortText
     country: ShortText | None = None
     province: ShortText | None = None
     municipality: ShortText | None = None
     jurisdiction: ShortText | None = None
 
-    @model_validator(mode="after")
-    def validate_jurisdiction(self) -> Self:
-        if all(value is not None for value in (self.country, self.province, self.municipality)):
-            return self
-        if self.jurisdiction is not None:
-            return self
-        raise ValueError("jurisdiction o country, province y municipality son obligatorios")
 
 
 class WorksiteSummary(StrictSchema):

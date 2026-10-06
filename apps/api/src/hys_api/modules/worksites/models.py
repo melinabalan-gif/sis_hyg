@@ -39,6 +39,7 @@ class Worksite(Base):
     )
     code: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    address: Mapped[str | None] = mapped_column(String(240), nullable=True)
     country: Mapped[str | None] = mapped_column(String(120))
     province: Mapped[str | None] = mapped_column(String(120))
     municipality: Mapped[str | None] = mapped_column(String(120))

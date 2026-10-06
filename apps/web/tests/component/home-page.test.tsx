@@ -678,11 +678,8 @@ describe("HomePage", () => {
       "responsable",
     );
     await screen.findByText(/creá o abrí una obra/i);
-    await user.type(screen.getByLabelText("Código"), "OBR-001");
-    await user.type(screen.getByLabelText("Nombre"), "Obra Piloto Norte");
-    await user.type(screen.getByLabelText("País"), "Argentina");
-    await user.type(screen.getByLabelText("Provincia"), "Provincia sintética");
-    await user.type(screen.getByLabelText("Municipio"), "Municipio sintético");
+    await user.type(screen.getByLabelText("Nombre de fantasía"), "Obra Piloto Norte");
+    await user.type(screen.getByLabelText("Dirección"), "Ayacucho 1250");
     await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     expect(
@@ -692,8 +689,8 @@ describe("HomePage", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText(/obra creada y abierta/i)).toBeVisible();
-    expect(screen.getByText("Próximas acciones")).toBeVisible();
-    expect(screen.getByText("Alertas")).toBeVisible();
+    expect(screen.getByText("Prepará la obra para comenzar")).toBeVisible();
+    expect(screen.getByText("Responsable H&S del proyecto")).toBeVisible();
     expect(screen.queryByText("Acciones principales")).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: /contratistas/i }));
     expect(
@@ -760,12 +757,12 @@ describe("HomePage", () => {
 
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
-    expect(screen.getByText("Alertas")).toBeVisible();
+    expect(screen.getByText("Documentación")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /revisar documentos pendientes/i }),
+      screen.getByRole("button", { name: /documentación/i }),
     ).toBeVisible();
     await user.click(
-      screen.getByRole("button", { name: /revisar documentos pendientes/i }),
+      screen.getByRole("button", { name: /documentación/i }),
     );
 
     expect(
@@ -798,17 +795,15 @@ describe("HomePage", () => {
       "responsable",
     );
     await screen.findByText(/creá o abrí una obra/i);
-    await user.type(screen.getByLabelText("Código"), "OBR-001");
-    await user.type(screen.getByLabelText("Nombre"), "Duplicada");
-    await user.type(screen.getByLabelText("País"), "Argentina");
-    await user.type(screen.getByLabelText("Provincia"), "Provincia sintética");
-    await user.type(screen.getByLabelText("Municipio"), "Municipio sintético");
-    await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
+await user.type(screen.getByLabelText("Nombre de fantasía"), "Duplicada");
+    await user.type(screen.getByLabelText("Dirección"), "Ayacucho 1250");
+await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     expect(await screen.findByText(/el código ya existe/i)).toHaveClass(
       "message--error",
     );
-    expect(screen.getByLabelText("Código")).toHaveValue("OBR-001");
+    expect(screen.getByLabelText("Nombre de fantasía")).toHaveValue("Duplicada");
+    expect(screen.getByLabelText("Dirección")).toHaveValue("Ayacucho 1250");
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: /crear y abrir/i }),
