@@ -7,11 +7,14 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
 
 import {
   PILOT_ACTORS,
+  PilotApiError,
   actorRole,
+  createWorksite as createWorksiteRequest,
   downloadAuditReport,
   formatDate,
   formatDateTime,
@@ -24,7 +27,16 @@ import {
   type WorksiteDetail,
   type WorksiteSummary,
   postPilot,
+  saveDocument,
+  reviewDocument,
+  type DocumentCreate,
+  type DocumentReviewCreate,
 } from "../lib/pilot-api";
+import {
+  DocumentMetadataEditor,
+  DocumentReviewForm,
+  documentMetadata,
+} from "./document-metadata-editor";
 
 const STEPS = [
   ["overview", "Inicio"],
@@ -143,6 +155,23 @@ function checklistLabel(key: string): string {
   return CHECKLIST_LABELS[key] ?? pilotLabel(key);
 }
 
+function activeAssignments(detail: WorksiteDetail | null, actor?: PilotActor) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const actorId = PILOT_ACTORS.find((item) => item.value === actor)?.id;
+  return (detail?.functional_assignments ?? []).filter(
+    (item) =>
+      (!actor || item.actor_id === actorId) &&
+      item.permission_scope === "WORKSITE" &&
+      item.valid_from <= today &&
+      (!item.valid_to || item.valid_to > today),
+  );
+}
+
 export function PilotWorkspace() {
   const [actor, setActor] = useState<PilotActor>("tecnico");
   const [worksites, setWorksites] = useState<WorksiteSummary[]>([]);
@@ -157,46 +186,96 @@ export function PilotWorkspace() {
 
   const role = actorRole(actor);
   const actorDefinition = PILOT_ACTORS.find((item) => item.value === actor);
-  const canManageResources = role === "TECNICO" || role === "RESPONSABLE_HYS";
+  const assignments = activeAssignments(detail, actor);
+  const isSetupOwner = Boolean(
+    detail && detail.created_by_actor_id === actorDefinition?.id,
+  );
+  const hasScope =
+    detail?.status === "ACTIVE" && (isSetupOwner || assignments.length > 0);
+  const canManageResources = Boolean(
+    hasScope && (role === "TECNICO" || role === "RESPONSABLE_HYS"),
+  );
   const canCreateWorksite = WORKSITE_CREATOR_ACTORS.includes(actor);
-  const canManageAssignments =
-    actor === "responsable" || actor === "contratista-principal";
+  const canManageAssignments = Boolean(
+    detail?.status === "ACTIVE" &&
+    (isSetupOwner ||
+      assignments.some(
+        (item) => item.function_code === "RESPONSABLE_HYS_PROYECTO",
+      )) &&
+    (actor === "responsable" || actor === "contratista-principal"),
+  );
+  const selectedAudit = selectedAuditId
+    ? detail?.audits.find((item) => item.id === selectedAuditId)
+    : (detail?.audits.find((item) => item.status === "EN_CURSO") ??
+      detail?.audits.at(-1));
   const canManageAudit = Boolean(
-    detail?.functional_assignments?.some(
-      (assignment) =>
-        assignment.actor_key === actor &&
-        assignment.function_code === "AUDITOR",
+    detail?.status === "ACTIVE" &&
+    assignments.some((item) => item.function_code === "AUDITOR") &&
+    (!selectedAudit ||
+      selectedAudit.status === "FINALIZADA" ||
+      (selectedAudit.editor_id === actorDefinition?.id &&
+        (!selectedAudit.auditor_actor_id ||
+          selectedAudit.auditor_actor_id === actorDefinition?.id) &&
+        selectedAudit.auditor_assignment_id ===
+          assignments.find(
+            (item) => item.id === selectedAudit.auditor_assignment_id,
+          )?.id)),
+  );
+  const canVerify = Boolean(
+    hasScope &&
+    role === "RESPONSABLE_HYS" &&
+    assignments.some((item) =>
+      [
+        "RESPONSABLE_HYS_PROYECTO",
+        "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+      ].includes(item.function_code),
     ),
   );
-  const canVerify = role === "AUDITOR" || role === "RESPONSABLE_HYS";
+  const canCorrect = Boolean(
+    detail?.status === "ACTIVE" &&
+    role !== "CONTRATISTA" &&
+    assignments.some((item) =>
+      [
+        "AUDITOR",
+        "RESPONSABLE_HYS_PROYECTO",
+        "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+        "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+      ].includes(item.function_code),
+    ),
+  );
 
-  const loadList = useCallback(async (nextActor: PilotActor) => {
-    const items = await listWorksites(nextActor);
-    setWorksites(items);
-    return items;
-  }, []);
-
-  const loadDetail = useCallback(async (id: string, nextActor: PilotActor) => {
-    const item = await getWorksite(id, nextActor);
-    setDetail(item);
-    return item;
-  }, []);
+  const generation = useRef(0);
+  const isCurrent = (token: number) => generation.current === token;
 
   useEffect(() => {
-    let active = true;
+    const sequence = generation;
+    const token = ++sequence.current;
+    const controller = new AbortController();
     void (async () => {
       try {
-        const items = await loadList(actor);
-        if (!active) return;
-        if (selectedId && items.some((item) => item.id === selectedId)) {
-          await loadDetail(selectedId, actor);
+        const items = await listWorksites(actor, controller.signal);
+        if (!isCurrent(token)) return;
+        setWorksites(items);
+        // A list snapshot can predate creation; only detail can resolve visibility.
+        if (selectedId) {
+          const item = await getWorksite(selectedId, actor, controller.signal);
+          if (isCurrent(token)) setDetail(item);
         } else {
           setSelectedId(null);
           setSelectedAuditId(null);
           setDetail(null);
         }
       } catch (reason) {
-        if (active) {
+        if (isCurrent(token) && !controller.signal.aborted) {
+          if (
+            reason instanceof PilotApiError &&
+            [403, 404].includes(reason.status)
+          ) {
+            setSelectedId(null);
+            setSelectedAuditId(null);
+            setDetail(null);
+            setNotice(null);
+          }
           setError(
             reason instanceof Error
               ? reason.message
@@ -204,35 +283,51 @@ export function PilotWorkspace() {
           );
         }
       } finally {
-        if (active) setLoading(false);
+        if (isCurrent(token)) setLoading(false);
       }
     })();
     return () => {
-      active = false;
+      controller.abort();
+      ++sequence.current;
     };
-  }, [actor, loadDetail, loadList, selectedId]);
+  }, [actor, selectedId]);
 
-  const refresh = useCallback(async () => {
-    await loadList(actor);
-    if (selectedId) await loadDetail(selectedId, actor);
-  }, [actor, loadDetail, loadList, selectedId]);
+  const refresh = useCallback(
+    async (token: number, nextActor: PilotActor, id: string | null) => {
+      const items = await listWorksites(nextActor);
+      if (generation.current !== token) return;
+      setWorksites(items);
+      if (id) {
+        try {
+          const item = await getWorksite(id, nextActor);
+          if (generation.current === token) setDetail(item);
+        } catch (reason) {
+          if (
+            generation.current === token &&
+            reason instanceof PilotApiError &&
+            [403, 404].includes(reason.status)
+          ) {
+            setSelectedId(null);
+            setSelectedAuditId(null);
+            setDetail(null);
+            setNotice(null);
+          }
+          throw reason;
+        }
+      }
+    },
+    [],
+  );
 
-  async function selectWorksite(id: string) {
+  function selectWorksite(id: string) {
+    ++generation.current;
     setSelectedId(id);
+    setDetail(null);
     setSelectedAuditId(null);
     setLoading(true);
     setError(null);
     setNotice(null);
-    try {
-      await loadDetail(id, actor);
-      setStep("overview");
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "No se pudo abrir la obra.",
-      );
-    } finally {
-      setLoading(false);
-    }
+    setStep("overview");
   }
 
   async function mutate(
@@ -240,16 +335,22 @@ export function PilotWorkspace() {
     path: string,
     payload: Record<string, unknown>,
     success: string,
+    request?: () => Promise<unknown>,
   ) {
+    const token = generation.current;
+    const context = { actor, selectedId };
     setBusy(key);
     setError(null);
     setNotice(null);
     try {
-      await postPilot(path, actor, payload);
-      await refresh();
+      await (request ? request() : postPilot(path, actor, payload));
+      if (!isCurrent(token)) return false;
+      await refresh(token, context.actor, context.selectedId);
+      if (!isCurrent(token)) return false;
       setNotice(success);
       return true;
     } catch (reason) {
+      if (!isCurrent(token)) return false;
       setError(
         reason instanceof Error
           ? reason.message
@@ -257,7 +358,7 @@ export function PilotWorkspace() {
       );
       return false;
     } finally {
-      setBusy(null);
+      if (isCurrent(token)) setBusy(null);
     }
   }
 
@@ -265,37 +366,42 @@ export function PilotWorkspace() {
     event.preventDefault();
     const target = event.currentTarget;
     const form = new FormData(target);
+    const token = generation.current;
     setBusy("worksite");
     setError(null);
     setNotice(null);
     try {
-      const created = await postPilot<WorksiteSummary>("/worksites", actor, {
-name: fieldValue(form, "name"),
-address: fieldValue(form, "address"),
-});
-      await loadList(actor);
+      const created = await createWorksiteRequest(actor, {
+        name: fieldValue(form, "name"),
+        address: fieldValue(form, "address"),
+        jurisdiction: fieldValue(form, "jurisdiction"),
+      });
+      if (!isCurrent(token)) return;
       setSelectedId(created.id);
-      await loadDetail(created.id, actor);
+      setDetail(null);
       setStep("overview");
       target.reset();
       setNotice(
         "Obra creada y abierta. Ya podés completar su legajo operativo.",
       );
     } catch (reason) {
+      if (!isCurrent(token)) return;
       setError(
         reason instanceof Error ? reason.message : "No se pudo crear la obra.",
       );
     } finally {
-      setBusy(null);
+      if (isCurrent(token)) setBusy(null);
     }
   }
 
   async function downloadAudit(auditId: string) {
+    const token = generation.current;
     setBusy("audit-report");
     setError(null);
     setNotice(null);
     try {
       const blob = await downloadAuditReport(auditId, actor);
+      if (!isCurrent(token)) return;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -304,13 +410,14 @@ address: fieldValue(form, "address"),
       URL.revokeObjectURL(url);
       setNotice("Informe de auditoría generado desde el historial persistido.");
     } catch (reason) {
+      if (!isCurrent(token)) return;
       setError(
         reason instanceof Error
           ? reason.message
           : "No se pudo generar el informe de auditoría.",
       );
     } finally {
-      setBusy(null);
+      if (isCurrent(token)) setBusy(null);
     }
   }
 
@@ -347,17 +454,13 @@ address: fieldValue(form, "address"),
       </a>
       <aside className="worksite-rail" aria-label="Navegación principal">
         <div className="rail-brand">
-          <svg
-              className="brand-symbol"
-              viewBox="0 0 40 40"
-              aria-hidden="true"
-            >
-              <path className="brand-symbol__h" d="M7 7v26M18 7v26M7 20h11" />
-              <path
-                className="brand-symbol__s"
-                d="M32 10c-2-2.2-4.3-3.2-7-3.2-3.8 0-6.3 1.9-6.3 4.9 0 3.1 2.7 4.1 6.3 5.2 3.8 1.1 6.6 2.4 6.6 6.4 0 4.1-3.3 7-8.1 7-3.5 0-6.5-1.3-8.7-3.8"
-              />
-            </svg>
+          <svg className="brand-symbol" viewBox="0 0 40 40" aria-hidden="true">
+            <path className="brand-symbol__h" d="M7 7v26M18 7v26M7 20h11" />
+            <path
+              className="brand-symbol__s"
+              d="M32 10c-2-2.2-4.3-3.2-7-3.2-3.8 0-6.3 1.9-6.3 4.9 0 3.1 2.7 4.1 6.3 5.2 3.8 1.1 6.6 2.4 6.6 6.4 0 4.1-3.3 7-8.1 7-3.5 0-6.5-1.3-8.7-3.8"
+            />
+          </svg>
           <span>
             <strong>H&amp;S Gestión</strong>
             <small>Piloto operativo</small>
@@ -366,6 +469,8 @@ address: fieldValue(form, "address"),
         <button
           className={`rail-home ${!selectedId ? "is-active" : ""}`}
           onClick={() => {
+            ++generation.current;
+            setBusy(null);
             setSelectedId(null);
             setSelectedAuditId(null);
             setDetail(null);
@@ -405,6 +510,25 @@ address: fieldValue(form, "address"),
                   id={`tab-${value}`}
                   key={value}
                   onClick={() => setStep(value)}
+                  tabIndex={step === value ? 0 : -1}
+                  onKeyDown={(event) => {
+                    const index = STEPS.findIndex(([key]) => key === value);
+                    const next =
+                      event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? STEPS.length - 1
+                          : ["ArrowRight", "ArrowDown"].includes(event.key)
+                            ? (index + 1) % STEPS.length
+                            : ["ArrowLeft", "ArrowUp"].includes(event.key)
+                              ? (index + STEPS.length - 1) % STEPS.length
+                              : null;
+                    if (next === null) return;
+                    event.preventDefault();
+                    const nextStep = STEPS[next][0];
+                    setStep(nextStep);
+                    document.getElementById(`tab-${nextStep}`)?.focus();
+                  }}
                   role="tab"
                   type="button"
                 >
@@ -429,6 +553,10 @@ address: fieldValue(form, "address"),
             <select
               value={actor}
               onChange={(event) => {
+                ++generation.current;
+                setBusy(null);
+                setDetail(null);
+                setSelectedAuditId(null);
                 setLoading(true);
                 setError(null);
                 setNotice(null);
@@ -512,14 +640,22 @@ address: fieldValue(form, "address"),
                       maxLength={200}
                     />
                   </Field>
-                <Field label="Dirección">
-                  <input
-                    name="address"
-                    placeholder="Ej. Ayacucho 1250"
-                    required
-                    maxLength={240}
-                  />
-                </Field>
+                  <Field label="Jurisdicción">
+                    <input
+                      name="jurisdiction"
+                      required
+                      maxLength={200}
+                      placeholder="Provincia sintética"
+                    />
+                  </Field>
+                  <Field label="Dirección">
+                    <input
+                      name="address"
+                      placeholder="Ej. Ayacucho 1250"
+                      required
+                      maxLength={240}
+                    />
+                  </Field>
                   <button
                     className="button button--primary form-action"
                     disabled={busy !== null}
@@ -537,6 +673,8 @@ address: fieldValue(form, "address"),
                 <button
                   className="button button--quiet back-button"
                   onClick={() => {
+                    ++generation.current;
+                    setBusy(null);
                     setSelectedId(null);
                     setSelectedAuditId(null);
                     setDetail(null);
@@ -753,7 +891,43 @@ address: fieldValue(form, "address"),
                 />
               ) : null}
               {step === "documents" ? (
-                <DocumentsStep detail={detail} actor={actor} />
+                <DocumentsStep
+                  onManageAuditor={() => setStep("actors")}
+                  detail={detail}
+                  actor={actor}
+                  onSave={(body, documentId) =>
+                    mutate(
+                      "document",
+                      "",
+                      {},
+                      "Metadatos guardados y pendientes de revisión independiente.",
+                      () =>
+                        saveDocument(
+                          detail.id,
+                          actor,
+                          documentId
+                            ? {
+                                title: body.title,
+                                document_type: body.document_type,
+                                notes: body.notes,
+                                valid_from: body.valid_from,
+                                expires_on: body.expires_on,
+                              }
+                            : body,
+                          documentId,
+                        ),
+                    )
+                  }
+                  onReview={(documentId, body) =>
+                    mutate(
+                      "document-review",
+                      "",
+                      {},
+                      "Revisión independiente registrada.",
+                      () => reviewDocument(detail.id, documentId, actor, body),
+                    )
+                  }
+                />
               ) : null}
               {step === "machines" ? (
                 <MachinesStep
@@ -914,7 +1088,7 @@ address: fieldValue(form, "address"),
                   }
                   busy={busy}
                   canVerify={canVerify}
-                  canCorrect={role === "TECNICO" || role === "RESPONSABLE_HYS"}
+                  canCorrect={canCorrect}
                   onCorrection={(event, finding) =>
                     void submitForm(
                       event,
@@ -983,20 +1157,20 @@ function Overview({
   const hasStages = detail.stages.length > 0;
 
   const hasProjectFile = detail.documents.some(
-    (item) =>
-      item.subject_kind === "WORKSITE" &&
-      item.subject_id === detail.id,
+    (item) => item.subject_kind === "WORKSITE" && item.subject_id === detail.id,
   );
 
   const pendingDocuments =
     detail.metrics.documents.by_status.FALTANTE +
     detail.metrics.documents.by_status.PENDIENTE +
+    (detail.metrics.documents.by_status.OBSERVADO ?? 0) +
     detail.metrics.documents.by_status.RECHAZADO +
     detail.metrics.documents.by_status.POR_VENCER +
     detail.metrics.documents.by_status.VENCIDO;
 
   const openFindings =
     detail.metrics.findings.by_status.ABIERTO +
+    detail.metrics.findings.by_status.EN_CORRECCION +
     detail.metrics.findings.by_status.PENDIENTE_VERIFICACION;
 
   const machineIssues =
@@ -1008,9 +1182,7 @@ function Overview({
     detail.metrics.findings.total > 0 ||
     detail.metrics.machines.total > 0 ||
     detail.metrics.latest_audit !== null ||
-    detail.contractors.some(
-      (item) => item.participation_type !== "PRINCIPAL",
-    );
+    detail.contractors.some((item) => item.participation_type !== "PRINCIPAL");
 
   if (!hasOperationalActivity) {
     const setupItems: {
@@ -1102,7 +1274,15 @@ function Overview({
                     {item.action} →
                   </button>
                 ) : (
-                  <span className={item.ready ? "setup-owner setup-owner--ready" : "setup-owner"}>{item.ready ? "✓ Completo" : "A cargo del proyecto"}</span>
+                  <span
+                    className={
+                      item.ready
+                        ? "setup-owner setup-owner--ready"
+                        : "setup-owner"
+                    }
+                  >
+                    {item.ready ? "✓ Completo" : "A cargo del proyecto"}
+                  </span>
                 )}
               </div>
             ))}
@@ -1655,6 +1835,7 @@ function StagesStep({
                           onSubmit={(event) => onUpdate(event, stage.id)}
                         >
                           <select
+                            aria-label="Estado de etapa"
                             name="stage_status"
                             defaultValue={stage.status ?? "ACTIVA"}
                           >
@@ -1663,11 +1844,13 @@ function StagesStep({
                             <option value="CERRADA">Cerrada</option>
                           </select>
                           <input
+                            aria-label="Fin de etapa"
                             name="stage_ended_on"
                             type="date"
                             defaultValue={stage.ended_on ?? ""}
                           />
                           <input
+                            aria-label="Nota del cambio"
                             name="stage_notes"
                             placeholder="Nota del cambio"
                           />
@@ -1841,10 +2024,12 @@ function TechnicalFileRow({
   component,
   document,
   canEdit,
+  onEdit,
 }: {
   component: TechnicalFileComponent;
   document?: WorksiteDetail["documents"][number];
   canEdit: boolean;
+  onEdit: () => void;
 }) {
   const keyData = document?.expires_on
     ? `Vence ${formatDate(document.expires_on)}`
@@ -1863,6 +2048,7 @@ function TechnicalFileRow({
         <button
           className="button button--quiet technical-file-row__action"
           type="button"
+          onClick={onEdit}
         >
           {document ? "Actualizar" : "Cargar"}
         </button>
@@ -1875,17 +2061,27 @@ function ProjectFileComponentCard({
   component,
   document,
   canEdit,
+  onEdit,
+  auditor,
+  editing,
 }: {
   component: ProjectFileComponent;
   document?: WorksiteDetail["documents"][number];
   canEdit: boolean;
+  onEdit: () => void;
+  auditor?: NonNullable<WorksiteDetail["functional_assignments"]>[number];
+  editing: boolean;
 }) {
   return (
     <Card className="technical-file-section">
       <div className="technical-file-section__heading">
         <h3>{component.name}</h3>
         {canEdit ? (
-          <button className="button button--quiet" type="button">
+          <button
+            className="button button--quiet"
+            type="button"
+            onClick={onEdit}
+          >
             {component.action}
           </button>
         ) : null}
@@ -1896,30 +2092,49 @@ function ProjectFileComponentCard({
           <div className="form-grid">
             <label>
               Auditor asignado
-              <input defaultValue="Sin asignar" />
+              <input readOnly value={auditor?.person_name ?? "Sin asignar"} />
             </label>
             <label>
               Profesión del auditor
-              <input defaultValue="Sin especificar" />
+              <input
+                readOnly
+                value={
+                  auditor?.profession_code
+                    ? pilotLabel(auditor.profession_code)
+                    : "Sin especificar"
+                }
+              />
             </label>
-            <label>
-              Carga horaria semanal del auditor
-              <input defaultValue="Sin especificar" />
-            </label>
+            {!editing ? (
+              <label>
+                Carga horaria semanal del auditor
+                <input
+                  type="number"
+                  readOnly
+                  value={documentMetadata(document).weekly_hours ?? ""}
+                />
+              </label>
+            ) : null}
           </div>
         ) : (
           <dl className="form-grid">
             <div>
               <dt>Auditor asignado</dt>
-              <dd>Sin asignar</dd>
+              <dd>{auditor?.person_name ?? "Sin asignar"}</dd>
             </div>
             <div>
               <dt>Profesión del auditor</dt>
-              <dd>Sin especificar</dd>
+              <dd>
+                {auditor?.profession_code
+                  ? pilotLabel(auditor.profession_code)
+                  : "Sin especificar"}
+              </dd>
             </div>
             <div>
               <dt>Carga horaria semanal del auditor</dt>
-              <dd>Sin especificar</dd>
+              <dd>
+                {documentMetadata(document).weekly_hours ?? "Sin especificar"}
+              </dd>
             </div>
           </dl>
         )
@@ -2153,7 +2368,11 @@ function PeopleStep({
                       className="inline-form"
                       onSubmit={(event) => onVerify(event, item.id)}
                     >
-                      <select name="status" defaultValue="HABILITADO">
+                      <select
+                        aria-label="Resultado de habilitación"
+                        name="status"
+                        defaultValue="HABILITADO"
+                      >
                         <option value="HABILITADO">Habilitado</option>
                         <option value="DOCUMENTACION_INCOMPLETA">
                           Documentación incompleta
@@ -2161,11 +2380,13 @@ function PeopleStep({
                         <option value="NO_HABILITADO">No habilitado</option>
                       </select>
                       <input
+                        aria-label="Función verificadora"
                         name="function_label"
                         required
                         placeholder="Función verificadora"
                       />
                       <input
+                        aria-label="Fundamento u observación"
                         name="observation"
                         placeholder="Fundamento u observación"
                       />
@@ -2192,9 +2413,18 @@ function PeopleStep({
 function DocumentsStep({
   detail,
   actor,
+  onSave,
+  onReview,
+  onManageAuditor,
 }: {
+  onManageAuditor: () => void;
   detail: WorksiteDetail;
   actor: PilotActor;
+  onSave: (body: DocumentCreate, documentId?: string) => Promise<boolean>;
+  onReview: (
+    documentId: string,
+    body: DocumentReviewCreate,
+  ) => Promise<boolean>;
 }) {
   const [view, setView] = useState<"index" | "technical-file" | "project-file">(
     "index",
@@ -2210,13 +2440,81 @@ function DocumentsStep({
   const projectDocuments = detail.documents.filter(
     (item) => item.subject_kind === "WORKSITE" && item.subject_id === detail.id,
   );
-  const canEditPrincipalFile = PRINCIPAL_TECHNICAL_FILE_EDITORS.includes(actor);
-  const canEditProjectFile = PROJECT_TECHNICAL_FILE_EDITORS.includes(actor);
-  const [availability, setAvailability] = useState<
-    Record<string, boolean | null>
-  >(() =>
-    Object.fromEntries(AUXILIARY_SERVICES.map((item) => [item.name, null])),
+  const documentAssignments = activeAssignments(detail, actor);
+  const canEditPrincipalFile =
+    detail.status === "ACTIVE" &&
+    PRINCIPAL_TECHNICAL_FILE_EDITORS.includes(actor) &&
+    documentAssignments.some(
+      (item) =>
+        [
+          "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+          "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+        ].includes(item.function_code) &&
+        item.represented_contractor_id === principalContractor?.id,
+    );
+  const canEditProjectFile =
+    detail.status === "ACTIVE" &&
+    PROJECT_TECHNICAL_FILE_EDITORS.includes(actor) &&
+    documentAssignments.some(
+      (item) => item.function_code === "RESPONSABLE_HYS_PROYECTO",
+    );
+  const [editing, setEditing] = useState<TechnicalFileComponent | null>(null);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+  const auditor = currentResponsibility(
+    detail.functional_assignments ?? [],
+    "AUDITOR",
   );
+  const activeDocuments =
+    view === "project-file" ? projectDocuments : technicalDocuments;
+  const editingDocument = editing
+    ? documentForComponent(activeDocuments, editing)
+    : undefined;
+  const actorId = PILOT_ACTORS.find((item) => item.value === actor)?.id;
+  const canReview =
+    detail.status === "ACTIVE" &&
+    (actorRole(actor) === "RESPONSABLE_HYS" ||
+      actorRole(actor) === "AUDITOR") &&
+    documentAssignments.some((item) =>
+      [
+        "AUDITOR",
+        "RESPONSABLE_HYS_PROYECTO",
+        "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
+      ].includes(item.function_code),
+    );
+  const editingForm = editing ? (
+    <DocumentMetadataEditor
+      key={`${detail.id}-${editing.name}-${editingDocument?.version ?? 0}`}
+      title={editing.name}
+      document={editingDocument}
+      subjectKind={view === "project-file" ? "WORKSITE" : "CONTRACTOR"}
+      subjectId={
+        view === "project-file" ? detail.id : (principalContractor?.id ?? "")
+      }
+      programAssignmentId={
+        editing.name === "Programa de Seguridad de Proyecto"
+          ? (auditor?.id ?? null)
+          : undefined
+      }
+      onSave={onSave}
+      onCancel={() => setEditing(null)}
+    />
+  ) : null;
+  const reviewForms = canReview
+    ? activeDocuments
+        .filter(
+          (document) =>
+            document.versions.find(
+              (version) => version.version_number === document.version,
+            )?.actor_id !== actorId,
+        )
+        .map((document) => (
+          <DocumentReviewForm
+            key={document.id}
+            document={document}
+            onReview={onReview}
+          />
+        ))
+    : null;
   const documentCounts = technicalDocuments.reduce<Record<string, number>>(
     (counts, item) => {
       counts[item.status] = (counts[item.status] ?? 0) + 1;
@@ -2229,20 +2527,37 @@ function DocumentsStep({
     (documentCounts.RECHAZADO ?? 0) +
     (documentCounts.OBSERVADO ?? 0);
   const expiringCount = documentCounts.POR_VENCER ?? 0;
+  const pendingCount =
+    (documentCounts.PENDIENTE ?? 0) + (documentCounts.FALTANTE ?? 0);
+  const missingComponents =
+    technicalDocuments.length > 0 &&
+    TECHNICAL_FILE_SECTIONS.some((section) =>
+      section.components.some(
+        (component) => !documentForComponent(technicalDocuments, component),
+      ),
+    );
   const fileStatus = attentionCount
     ? "Requiere atención"
-    : expiringCount
-      ? "Por vencer"
-      : technicalDocuments.length
-        ? "Documentación vigente"
-        : "Sin documentación";
+    : pendingCount
+      ? "Pendiente de revisión"
+      : missingComponents
+        ? "Documentación incompleta"
+        : expiringCount
+          ? "Por vencer"
+          : technicalDocuments.length
+            ? "Documentación vigente"
+            : "Sin documentación";
   const fileStatusTone = attentionCount
     ? "VENCIDO"
-    : expiringCount
-      ? "POR_VENCER"
-      : technicalDocuments.length
-        ? "VIGENTE"
-        : "PENDIENTE";
+    : pendingCount
+      ? "PENDIENTE"
+      : missingComponents
+        ? "FALTANTE"
+        : expiringCount
+          ? "POR_VENCER"
+          : technicalDocuments.length
+            ? "VIGENTE"
+            : "PENDIENTE";
 
   if (view === "index") {
     return (
@@ -2329,9 +2644,23 @@ function DocumentsStep({
               component={component}
               document={documentForComponent(projectDocuments, component)}
               canEdit={canEditProjectFile}
+              onEdit={() => setEditing(component)}
+              auditor={auditor}
+              editing={editing?.name === component.name}
             />
           ))}
         </div>
+        {canEditProjectFile ? (
+          <button
+            className="button button--quiet"
+            type="button"
+            onClick={onManageAuditor}
+          >
+            Cambiar auditor en Responsables
+          </button>
+        ) : null}
+        {editingForm}
+        {reviewForms}
       </section>
     );
   }
@@ -2368,6 +2697,7 @@ function DocumentsStep({
                   key={component.name}
                   component={component}
                   document={documentForComponent(technicalDocuments, component)}
+                  onEdit={() => setEditing(component)}
                   canEdit={
                     canEditPrincipalFile &&
                     (!PRINCIPAL_TECHNICAL_FILE_LICENSED_ONLY.has(
@@ -2388,14 +2718,44 @@ function DocumentsStep({
                       <AuxiliaryServiceRow
                         key={component.name}
                         component={component}
-                        available={availability[component.name] ?? null}
-                        canEdit={canEditPrincipalFile}
-                        onChange={(value) =>
-                          setAvailability((current) => ({
-                            ...current,
-                            [component.name]: value,
-                          }))
+                        available={
+                          documentMetadata(
+                            documentForComponent(technicalDocuments, component),
+                          ).available ?? null
                         }
+                        canEdit={
+                          canEditPrincipalFile &&
+                          Boolean(principalContractor) &&
+                          !savingAvailability
+                        }
+                        onChange={(value) => {
+                          const document = documentForComponent(
+                            technicalDocuments,
+                            component,
+                          );
+                          setSavingAvailability(true);
+                          void onSave(
+                            {
+                              title: component.name,
+                              document_type: "SERVICIO_AUXILIAR",
+                              subject_kind: "CONTRACTOR",
+                              subject_id: principalContractor?.id ?? "",
+                              valid_from: document?.valid_from ?? null,
+                              expires_on: document?.expires_on ?? null,
+                              notes: JSON.stringify({
+                                ...documentMetadata(
+                                  documentForComponent(
+                                    technicalDocuments,
+                                    component,
+                                  ),
+                                ),
+                                schema: "hys.technical_metadata.v1",
+                                available: value,
+                              }),
+                            },
+                            document?.id,
+                          ).finally(() => setSavingAvailability(false));
+                        }}
                       />
                     ))}
                   </ul>
@@ -2405,6 +2765,8 @@ function DocumentsStep({
           </Card>
         ))}
       </div>
+      {editingForm}
+      {reviewForms}
     </section>
   );
 }
@@ -2556,6 +2918,7 @@ function MachinesStep({
                                 }
                               >
                                 <input
+                                  aria-label="Notas de validación"
                                   name="validation_notes"
                                   required
                                   placeholder="Notas de validación"
@@ -2688,7 +3051,7 @@ function AuditStep({
     answeredByCode.has(control.catalog_code),
   ).length;
   const progressLabel = `${answeredCount} de ${availableControls.length} controles respondidos`;
-  const auditAssignments = (detail.functional_assignments ?? []).filter(
+  const auditAssignments = activeAssignments(detail, actor).filter(
     (assignment) =>
       assignment.actor_key === actor && assignment.function_code === "AUDITOR",
   );
@@ -2854,17 +3217,26 @@ function AuditStep({
           {inProgress ? (
             <form className="inline-form" onSubmit={onUnregistered}>
               <input
+                aria-label="Descripción de persona no registrada"
                 name="unregistered_description"
                 required
                 placeholder="Describí la persona no registrada"
               />
-              <select name="unregistered_severity" defaultValue="MEDIA">
+              <select
+                aria-label="Severidad de elemento no registrado"
+                name="unregistered_severity"
+                defaultValue="MEDIA"
+              >
                 <option value="BAJA">Baja</option>
                 <option value="MEDIA">Media</option>
                 <option value="ALTA">Alta</option>
                 <option value="CRITICA">Crítica</option>
               </select>
-              <select name="unregistered_contractor_id" defaultValue="">
+              <select
+                aria-label="Contratista de elemento no registrado"
+                name="unregistered_contractor_id"
+                defaultValue=""
+              >
                 <option value="">Empresa afectada (opcional)</option>
                 {detail.contractors.map((contractor) => (
                   <option key={contractor.id} value={contractor.id}>
@@ -2873,6 +3245,7 @@ function AuditStep({
                 ))}
               </select>
               <select
+                aria-label="Responsable de corregir persona no registrada"
                 name="unregistered_responsible_contractor_id"
                 defaultValue=""
               >
@@ -2883,7 +3256,10 @@ function AuditStep({
                   </option>
                 ))}
               </select>
-              <button className="button button--dark" disabled={busy !== null}>
+              <button
+                className="button button--dark"
+                disabled={busy !== null || !canManage}
+              >
                 Registrar persona no registrada
               </button>
             </form>
@@ -2965,6 +3341,7 @@ function AuditControlForm({
         {needsReason ? (
           <Field label="Motivo / observación">
             <input
+              aria-label="Fundamento de verificación"
               name="reason"
               placeholder="Obligatorio para No aplica / No verificado"
               required
@@ -3152,7 +3529,10 @@ function FollowupStep({
                 Enviar a verificación
               </button>
             ) : null}
-            {finding.status === "PENDIENTE_VERIFICACION" && canVerify ? (
+            {finding.status === "PENDIENTE_VERIFICACION" &&
+            canVerify &&
+            finding.created_by !== currentActorId &&
+            finding.corrections.at(-1)?.created_by !== currentActorId ? (
               <form
                 className="verification-form"
                 onSubmit={(event) => onVerify(event, finding)}
@@ -3164,7 +3544,11 @@ function FollowupStep({
                   </p>
                 </div>
                 <Field label="Decisión">
-                  <select name="decision" defaultValue="ACEPTADA">
+                  <select
+                    aria-label="Decisión de verificación"
+                    name="decision"
+                    defaultValue="ACEPTADA"
+                  >
                     <option>ACEPTADA</option>
                     <option>RECHAZADA</option>
                   </select>

@@ -1,5 +1,6 @@
 """Casos de uso transaccionales del primer flujo vertical sintético."""
 
+import json
 from collections.abc import Collection
 from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
 from functools import lru_cache
@@ -235,13 +236,17 @@ class PilotService:
     async def create_worksite(self, payload: WorksiteCreate) -> WorksiteSummary:
         self._require_worksite_create()
         existing_codes = (
-            await self.session.execute(
-                select(Worksite.code).where(
-                    Worksite.organization_id == PILOT_ORGANIZATION_ID,
-                    Worksite.code.like("OBRA-%"),
+            (
+                await self.session.execute(
+                    select(Worksite.code).where(
+                        Worksite.organization_id == PILOT_ORGANIZATION_ID,
+                        Worksite.code.like("OBRA-%"),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         sequence = max(
             (
@@ -675,6 +680,41 @@ class PilotService:
         )
         return await self._finding_view(finding)
 
+    async def _validate_technical_metadata_assignment(
+        self, worksite_id: UUID, notes: str | None
+    ) -> None:
+        if not notes:
+            return
+        try:
+            metadata = json.loads(notes)
+        except ValueError, TypeError:
+            return
+        if (
+            not isinstance(metadata, dict)
+            or metadata.get("schema") != "hys.technical_metadata.v1"
+            or not metadata.get("auditor_assignment_id")
+        ):
+            return
+        today = _today_in_argentina()
+        assignments = await self.session.scalars(
+            select(WorksiteFunctionalAssignment).where(
+                WorksiteFunctionalAssignment.organization_id == PILOT_ORGANIZATION_ID,
+                WorksiteFunctionalAssignment.worksite_id == worksite_id,
+                WorksiteFunctionalAssignment.id == UUID(metadata["auditor_assignment_id"]),
+                WorksiteFunctionalAssignment.function_code == "AUDITOR",
+                WorksiteFunctionalAssignment.valid_from <= today,
+                or_(
+                    WorksiteFunctionalAssignment.valid_to.is_(None),
+                    WorksiteFunctionalAssignment.valid_to > today,
+                ),
+            )
+        )
+        if not any(str(item.id) == metadata["auditor_assignment_id"] for item in assignments):
+            raise _conflict(
+                "technical_metadata_assignment_invalid",
+                "La asignación del auditor no está vigente en esta obra.",
+            )
+
     async def create_document(
         self,
         worksite_id: UUID,
@@ -682,6 +722,7 @@ class PilotService:
     ) -> DocumentView:
         self._require_resource_write()
         worksite = await self._get_active_worksite(worksite_id)
+        await self._validate_technical_metadata_assignment(worksite_id, payload.notes)
         subject_name = await self._validate_document_subject(worksite, payload)
         subject_contractor_id = await self._document_subject_contractor_id(
             worksite_id, payload.subject_kind, payload.subject_id
@@ -767,7 +808,18 @@ class PilotService:
             contractor_ids={subject_contractor_id} if subject_contractor_id else set(),
             require_contractor_target=subject_contractor_id is not None,
         )
-        if document.uploaded_by_actor_id == self.context.actor.id:
+        current_version = await self.session.scalar(
+            select(DocumentVersion).where(
+                DocumentVersion.organization_id == PILOT_ORGANIZATION_ID,
+                DocumentVersion.document_id == document.id,
+                DocumentVersion.version_number == document.version,
+            )
+        )
+        if current_version is None or current_version.id != payload.document_version_id:
+            raise _conflict(
+                "document_version_stale", "La versión documental cambió; recargá antes de revisar."
+            )
+        if current_version.actor_id == self.context.actor.id:
             raise _conflict(
                 "document_reviewer_must_be_independent",
                 "La persona que cargó el documento no puede revisarlo.",
@@ -776,6 +828,7 @@ class PilotService:
         review = DocumentReview(
             organization_id=PILOT_ORGANIZATION_ID,
             document_id=document.id,
+            document_version_id=current_version.id,
             reviewer_actor_id=self.context.actor.id,
             reviewer_function=assignment.function_code,
             result=payload.result,
@@ -831,6 +884,7 @@ class PilotService:
             require_contractor_target=subject_contractor_id is not None,
         )
 
+        await self._validate_technical_metadata_assignment(worksite_id, payload.notes)
         next_version = document.version + 1
         document.title = payload.title
         document.document_type = payload.document_type
@@ -1369,12 +1423,16 @@ class PilotService:
         finding_id: UUID,
         payload: VerificationCreate,
     ) -> FindingView:
-        require_pilot_role(self.context.actor, PilotRole.AUDITOR, PilotRole.RESPONSABLE_HYS)
+        require_pilot_role(self.context.actor, PilotRole.RESPONSABLE_HYS)
         finding = await self._get_finding(finding_id, for_update=True)
         if finding.status != "PENDIENTE_VERIFICACION":
             raise _conflict(
                 "finding_not_pending_verification",
                 "El desvío no está pendiente de verificación.",
+            )
+        if self.context.actor.id == finding.created_by_actor_id:
+            raise _conflict(
+                "segregation_of_duties", "El creador del desvío no puede verificarlo ni cerrarlo."
             )
         correction = await self._latest_correction(finding.id)
         if correction is None:
@@ -1390,7 +1448,6 @@ class PilotService:
         await self._require_current_function(
             finding.worksite_id,
             {
-                "AUDITOR",
                 "RESPONSABLE_HYS_PROYECTO",
                 "RESPONSABLE_HYS_CONTRATISTA_PRINCIPAL",
             },
@@ -1427,6 +1484,18 @@ class PilotService:
 
     async def get_finding_timeline(self, finding_id: UUID) -> FindingTimeline:
         finding = await self._get_finding(finding_id)
+        await self._get_worksite(finding.worksite_id, require_scope=True)
+        if self.context.actor.role is not PilotRole.CONTRATISTA:
+            try:
+                await self._require_current_function(finding.worksite_id, _ALL_FUNCTIONS)
+            except ProblemException as exc:
+                if exc.status == 403:
+                    raise _not_found() from exc
+                raise
+        if self.context.actor.key in _CONTRACTOR_ACTOR_KEYS:
+            scope_ids = await self._contractor_scope_ids(finding.worksite_id)
+            if finding.affected_contractor_id not in scope_ids:
+                raise _not_found()
         events = await self._events_for_finding(finding.id)
         return FindingTimeline(finding_id=finding.id, events=events)
 
@@ -3240,6 +3309,8 @@ class PilotService:
                 "id": worksite.id,
                 "code": worksite.code,
                 "name": worksite.name,
+                "address": worksite.address,
+                "created_by_actor_id": getattr(worksite, "created_by_actor_id", None),
                 "jurisdiction": worksite.jurisdiction,
                 "country": worksite.country,
                 "province": worksite.province,
@@ -3401,6 +3472,7 @@ class PilotService:
         return DocumentReviewView.model_validate(
             {
                 "id": review.id,
+                "document_version_id": review.document_version_id,
                 "reviewer": review.reviewer_actor_id,
                 "reviewer_function": review.reviewer_function,
                 "reviewed_at": review.reviewed_at,
@@ -3537,6 +3609,6 @@ class PilotService:
 
 
 async def get_pilot_service(
-    context: Annotated[PilotRequestContext, Depends(get_pilot_context)],
+    context: Annotated[PilotRequestContext, Depends(get_pilot_context, scope="function")],
 ) -> PilotService:
     return PilotService(context)

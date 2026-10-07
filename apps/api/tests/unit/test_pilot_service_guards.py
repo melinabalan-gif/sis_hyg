@@ -102,6 +102,7 @@ async def test_worksite_creation_is_restricted_to_the_three_authorized_profiles(
     with pytest.raises(ProblemException) as raised:
         await service.create_worksite(
             WorksiteCreate(
+                address="Synthetic test address",
                 code="SYN-OBRA-AUTH",
                 name="Obra sintética",
                 country="Argentina",
@@ -443,7 +444,7 @@ async def test_complete_audit_exposes_snapshot_and_becomes_immutable() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("same_as", ["correction_author"])
+@pytest.mark.parametrize("same_as", ["creator", "correction_author"])
 async def test_verification_enforces_segregation_of_duties(same_as: str) -> None:
     service, _session = _service("responsable")
     actor_id = PILOT_ACTORS["responsable"].id

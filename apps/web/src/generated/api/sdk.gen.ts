@@ -15,6 +15,9 @@ import type {
   HealthReadyData,
   HealthReadyErrors,
   HealthReadyResponses,
+  PilotChangeWorksiteFunctionalAssignmentData,
+  PilotChangeWorksiteFunctionalAssignmentErrors,
+  PilotChangeWorksiteFunctionalAssignmentResponses,
   PilotCreateAuditControlData,
   PilotCreateAuditControlErrors,
   PilotCreateAuditControlResponses,
@@ -60,6 +63,9 @@ import type {
   PilotFinalizeAuditData,
   PilotFinalizeAuditErrors,
   PilotFinalizeAuditResponses,
+  PilotFinishWorksiteFunctionalAssignmentData,
+  PilotFinishWorksiteFunctionalAssignmentErrors,
+  PilotFinishWorksiteFunctionalAssignmentResponses,
   PilotGetAuditData,
   PilotGetAuditErrors,
   PilotGetAuditResponses,
@@ -531,6 +537,56 @@ export const pilotCreateWorksiteFunctionalAssignment = <
     ThrowOnError
   >({
     url: "/api/v1/worksites/{worksite_id}/functional-assignments",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Change Worksite Functional Assignment
+ */
+export const pilotChangeWorksiteFunctionalAssignment = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotChangeWorksiteFunctionalAssignmentData, ThrowOnError>,
+): RequestResult<
+  PilotChangeWorksiteFunctionalAssignmentResponses,
+  PilotChangeWorksiteFunctionalAssignmentErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotChangeWorksiteFunctionalAssignmentResponses,
+    PilotChangeWorksiteFunctionalAssignmentErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/functional-assignments/{assignment_id}/change",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Finish Worksite Functional Assignment
+ */
+export const pilotFinishWorksiteFunctionalAssignment = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PilotFinishWorksiteFunctionalAssignmentData, ThrowOnError>,
+): RequestResult<
+  PilotFinishWorksiteFunctionalAssignmentResponses,
+  PilotFinishWorksiteFunctionalAssignmentErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    PilotFinishWorksiteFunctionalAssignmentResponses,
+    PilotFinishWorksiteFunctionalAssignmentErrors,
+    ThrowOnError
+  >({
+    url: "/api/v1/worksites/{worksite_id}/functional-assignments/{assignment_id}/finish",
     ...options,
     headers: {
       "Content-Type": "application/json",

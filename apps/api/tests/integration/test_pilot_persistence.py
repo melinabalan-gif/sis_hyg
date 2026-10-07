@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import date
 from uuid import UUID
@@ -422,9 +423,10 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
 
     try:
         worksite = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_worksite(
                 WorksiteCreate(
+                    address="Synthetic test address",
                     code="SYN-FUNCTION-GUARDS",
                     name="Obra funciones sintéticas",
                     jurisdiction="Provincia sintética",
@@ -432,7 +434,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             ),
         )
         contractor = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_contractor(
                 worksite.id,
                 ContractorCreate(
@@ -442,7 +444,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             ),
         )
         technician = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_person(
                 worksite.id,
                 PersonCreate(
@@ -453,7 +455,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             ),
         )
         responsible = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_person(
                 worksite.id,
                 PersonCreate(
@@ -512,7 +514,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
                 ),
             )
         secondary = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_contractor(
                 worksite.id,
                 ContractorCreate(
@@ -550,9 +552,10 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
                 ),
             )
         foreign_worksite = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_worksite(
                 WorksiteCreate(
+                    address="Synthetic test address",
                     code="SYN-FUNCTION-FOREIGN",
                     name="Obra función extranjera",
                     jurisdiction="Provincia sintética",
@@ -560,7 +563,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             ),
         )
         foreign_contractor = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_contractor(
                 foreign_worksite.id,
                 ContractorCreate(
@@ -570,7 +573,7 @@ async def test_functional_assignment_guards_profession_and_worksite_scope(
             ),
         )
         foreign_person = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_person(
                 foreign_worksite.id,
                 PersonCreate(
@@ -854,10 +857,11 @@ async def test_document_versions_are_initial_sequenced_append_only_and_scoped(
         async with AsyncSession(engine) as session:
             async with session.begin():
                 service = PilotService(
-                    PilotRequestContext(actor=PILOT_ACTORS["tecnico"], session=session)
+                    PilotRequestContext(actor=PILOT_ACTORS["responsable"], session=session)
                 )
                 first_worksite = await service.create_worksite(
                     WorksiteCreate(
+                        address="Synthetic test address",
                         code="SYN-DOC-VERSIONS-A",
                         name="Obra de versiones A",
                         jurisdiction="Provincia sintética",
@@ -897,6 +901,7 @@ async def test_document_versions_are_initial_sequenced_append_only_and_scoped(
                 ).all()
                 second_worksite = await service.create_worksite(
                     WorksiteCreate(
+                        address="Synthetic test address",
                         code="SYN-DOC-VERSIONS-B",
                         name="Obra de versiones B",
                         jurisdiction="Provincia sintética",
@@ -934,7 +939,7 @@ async def test_document_versions_are_initial_sequenced_append_only_and_scoped(
         async with AsyncSession(engine) as session:
             async with session.begin():
                 service = PilotService(
-                    PilotRequestContext(actor=PILOT_ACTORS["tecnico"], session=session)
+                    PilotRequestContext(actor=PILOT_ACTORS["responsable"], session=session)
                 )
                 with pytest.raises(ProblemException) as raised:
                     await service.create_document_version(
@@ -959,10 +964,11 @@ async def test_machine_inspections_are_initial_and_append_only_transitions(
         async with AsyncSession(engine) as session:
             async with session.begin():
                 service = PilotService(
-                    PilotRequestContext(actor=PILOT_ACTORS["tecnico"], session=session)
+                    PilotRequestContext(actor=PILOT_ACTORS["responsable"], session=session)
                 )
                 worksite = await service.create_worksite(
                     WorksiteCreate(
+                        address="Synthetic test address",
                         code="SYN-MACHINE-INSPECTIONS",
                         name="Obra de inspecciones",
                         jurisdiction="Provincia sintética",
@@ -1046,9 +1052,10 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
 
     try:
         worksite = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_worksite(
                 WorksiteCreate(
+                    address="Synthetic test address",
                     code="SYN-COMPLETE-JOURNEY",
                     name="Obra recorrido completo",
                     jurisdiction="Provincia sintética",
@@ -1056,7 +1063,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         principal = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_contractor(
                 worksite.id,
                 ContractorCreate(
@@ -1066,7 +1073,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         project_responsible_person = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_person(
                 worksite.id,
                 PersonCreate(
@@ -1088,7 +1095,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         auditor_person = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_person(
                 worksite.id,
                 PersonCreate(
@@ -1112,7 +1119,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
             ),
         )
         technician_person = await run_as(
-            "tecnico",
+            "responsable",
             lambda service: service.create_person(
                 worksite.id,
                 PersonCreate(
@@ -1180,6 +1187,7 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
                 worksite.id,
                 document.id,
                 DocumentReviewCreate(
+                    document_version_id=document.versions[0].id,
                     result="APROBADO",
                     foundation="Revisión documental sintética completa.",
                 ),
@@ -1271,3 +1279,130 @@ async def test_complete_persisted_journey_closes_finding_and_generates_pdf(
     assert audit_pdf.startswith(b"%PDF-1.4")
     assert b"Informe de Auditoria" in audit_pdf
     assert audit_pdf.endswith(b"%%EOF\n")
+
+
+async def test_technical_metadata_survives_transaction_reopen_and_version_history(
+    migrated_database: str, app_database_url: str
+) -> None:
+    del migrated_database
+    engine = create_async_engine(app_database_url)
+
+    async def run(action, actor_key="responsable"):
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                await apply_authorization_context(
+                    session,
+                    AuthorizationContext(
+                        organization_id=PILOT_ORGANIZATION_ID,
+                        actor_id=PILOT_ACTORS[actor_key].id,
+                    ),
+                )
+                return await action(
+                    PilotService(
+                        PilotRequestContext(actor=PILOT_ACTORS[actor_key], session=session)
+                    )
+                )
+
+    try:
+        worksite = await run(
+            lambda service: service.create_worksite(
+                WorksiteCreate(
+                    name="Metadatos sintéticos persistidos",
+                    address="Dirección sintética",
+                    jurisdiction="Provincia sintética",
+                )
+            )
+        )
+        responsible_person = await run(
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(
+                    display_name="Responsable sintético", profession_code="LICENCIADO_HYS"
+                ),
+            )
+        )
+        responsible_assignment = await run(
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["responsable"].id,
+                    person_id=responsible_person.id,
+                    function_code="RESPONSABLE_HYS_PROYECTO",
+                ),
+            )
+        )
+        auditor_person = await run(
+            lambda service: service.create_person(
+                worksite.id,
+                PersonCreate(display_name="Auditor sintético", profession_code="TECNICO_HYS"),
+            )
+        )
+        auditor_assignment = await run(
+            lambda service: service.create_functional_assignment(
+                worksite.id,
+                WorksiteFunctionalAssignmentCreate(
+                    actor_id=PILOT_ACTORS["auditor"].id,
+                    person_id=auditor_person.id,
+                    function_code="AUDITOR",
+                    delegated_by_assignment_id=responsible_assignment.id,
+                ),
+            )
+        )
+        initial = {
+            "schema": "hys.technical_metadata.v1",
+            "detail": "Notas humanas sintéticas",
+            "weekly_hours": 12,
+            "available": True,
+            "extension": {"preserved": True},
+            "auditor_assignment_id": str(auditor_assignment.id),
+        }
+        document = await run(
+            lambda service: service.create_document(
+                worksite.id,
+                DocumentCreate(
+                    subject_kind=SubjectKind.WORKSITE,
+                    subject_id=worksite.id,
+                    title="Programa de Seguridad de Proyecto",
+                    document_type="LEGAJO_TECNICO",
+                    notes=json.dumps(initial),
+                ),
+            )
+        )
+        reviewed = await run(
+            lambda service: service.review_document(
+                worksite.id,
+                document.id,
+                DocumentReviewCreate(
+                    document_version_id=document.versions[0].id,
+                    result="APROBADO",
+                    foundation="Revisión sintética independiente",
+                ),
+            ),
+            actor_key="auditor",
+        )
+        assert reviewed.review_status == "APROBADO"
+        revised = {**initial, "weekly_hours": 16, "available": False}
+        await run(
+            lambda service: service.create_document_version(
+                worksite.id,
+                document.id,
+                DocumentVersionCreate(
+                    title=document.title,
+                    document_type=document.document_type,
+                    notes=json.dumps(revised),
+                ),
+            )
+        )
+        reopened = await run(lambda service: service.get_worksite_detail(worksite.id))
+        stored = next(item for item in reopened.documents if item.id == document.id)
+        assert stored.version == 2
+        assert stored.review_status == "PENDIENTE"
+        assert len(stored.reviews) == 1
+        assert stored.reviews[0].document_version_id == document.versions[0].id
+        assert stored.reviews[0].document_version_id != stored.versions[0].id
+        assert json.loads(stored.notes or "{}") == revised
+        assert {
+            item.version_number: json.loads(item.notes or "{}") for item in stored.versions
+        } == {1: initial, 2: revised}
+    finally:
+        await engine.dispose()

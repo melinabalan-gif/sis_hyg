@@ -1,5 +1,51 @@
 # Calidad, CI, backup y observabilidad
 
+## Estado efectivo del piloto — 2026-10-07
+
+**Sólo datos sintéticos; no se habilita producción.** Las secciones siguientes
+son objetivos V1, no una certificación de controles desplegados. El workflow
+versionado incorpora controles; un resultado local no demuestra su ejecución en
+GitHub ni protección de ramas, aprobación humana o hardening del host.
+
+| Control actual | Cobertura y límite |
+|---|---|
+| Policy | Fuente Git actual e historial alcanzable de todas las refs; rechaza clones shallow, Office/claves/.env versionados, formatos conocidos de tokens, literales de credenciales y DNI/CUIL/contacto con etiquetas. Reporta IDs opacos, no valores/rutas. No es DLP exhaustivo ni anonimización. |
+| Términos protegidos | `HYS_RESTRICTED_TERMS_B64` se decodifica estrictamente; si falta, informa cobertura no ejecutada. Para gate de privacidad: `python scripts/policy_check.py --history --require-restricted-terms`. Configuración custodiada y aprobación siguen pendientes; no cargar términos reales en fixtures. |
+| Dependencias | npm audit y pip-audit sobre export frozen del lock completo; sin auto-fix. Inventario CycloneDX npm/Python en almacenamiento temporal del runner; no contiene datos de negocio. No demuestra provenance ni cubre vulnerabilidades del OS/imágenes. |
+| Licencias/workflow | YAML real parseado con PyYAML aislado fijado; SHA de acciones, permisos read-only y timeout por job. Allowlist SPDX npm y obligaciones conocidas MPL-2.0 (axe/lightningcss) y LGPL-3.0-or-later (binarios sharp) explícitas. No sustituye dictamen legal ni actionlint completo. Licencias Python inventariadas, aprobación aún pendiente. |
+| Contratos/migraciones | OpenAPI `--check`, regeneración del SDK sin diferencias, único head igual a readiness; integración DB incluye empty→head, downgrade/re-upgrade y `alembic check`. PostgreSQL real aislado sigue requerido para acreditar resultados. |
+| Journey | Playwright desktop/móvil: alta sintética real UI/API, dirección persistida tras reload, navegación por teclado y denegación API. No cubre siete pasos V1, MFA, binarios u offline inexistentes. Requiere loopback y opt-in explícito; no captura screenshots/trazas/datos. |
+| Proxy | CSP del piloto sin unsafe-eval, frame-ancestors none, object-src none, base/form self y X-Frame-Options DENY. Inline permitido para bootstrap Next: no es CSP productiva con nonce/hash. Access logs desactivados hasta demostrar redacción de query/headers/rutas. |
+| Smoke | Shell/PowerShell comprueban salud, banner sintético, migrador y cinco puertos privados DB/S3/AV; ausencia de servicio/inspección falla. Bypass TLS sólo HTTPS loopback; PowerShell requiere 7, en 5.1 usar certificado confiable sin switch. No es E2E. |
+
+El reemplazo del wrapper ESLint Next evita `fast-glob→micromatch→braces`, cuyo
+aviso no tiene parche publicado. Configs soportadas TypeScript/React/hooks/a11y
+mantienen guards; reglas declarativas prohíben imports Pages Router, img/head/script
+raw y navegación interna sin Link. No se afirma equivalencia con todas las
+heurísticas de Core Web Vitals (fuentes, polyfills y Pages Router); build/tipos y
+journeys complementan el gate. No se vendorea ni se aliasa una API incompatible.
+
+### Ensayo de restore lógico sintético
+
+En un PostgreSQL **aislado**, crear origen con nombre terminado `_test` y destino
+vacío distinto terminado `_restore_test`, ambos loopback. Exportar sólo en el
+proceso `HYS_ENVIRONMENT=test`, `HYS_DRILL_SOURCE_URL` y `HYS_DRILL_TARGET_URL`.
+Ejecutar `python scripts/restore_drill.py --allow-synthetic-restore` (en Windows,
+agregar `--pg-bin` con el directorio de herramientas portables). No usa `.env`.
+Rechaza destinos no vacíos y jamás hace clean/drop; pg_dump custom→pg_restore,
+compara huellas de dumps de datos; archive de hasta 16 MiB sólo en memoria y sin
+retención. Cada herramienta tiene timeout de 60 s. En CI `--container` usa las
+herramientas de la misma versión del PostgreSQL efímero. No imprime URLs,
+credenciales ni contenido; la DB restaurada queda para inspección del operador.
+
+El ensayo no es backup productivo: no configura destino externo cifrado,
+retención, KMS, snapshots de objetos, scheduler, alertas ni RPO/RTO. Para datos
+reales siguen pendientes DEC-006, restore completo con objetos y aprobación.
+También siguen abiertos autenticación/MFA, nonce CSP, rate limiting probado en
+un componente soportado (Caddy estándar no ofrece `rate_limit`), scanner de
+imágenes/OS, provenance, privacidad formal, host Linux y gates V1. No desplegar
+un plugin comunitario implícito ni afirmar cumplimiento legal.
+
 ## 1. Definition of Ready
 
 Una historia entra en implementación cuando tiene actor, scope, invariantes,
@@ -127,4 +173,3 @@ no se convierte automáticamente en compromiso contractual.
 - incidente de privacidad y preservación de evidencia;
 - corrupción/diferencia de audit log o dashboard;
 - retiro urgente de regla normativa.
-

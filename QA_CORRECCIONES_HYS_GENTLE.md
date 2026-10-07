@@ -137,16 +137,16 @@ Debe poder:
 - completar checklist;
 - crear desvios mediante NO_CUMPLE;
 - revisar correcciones;
-- verificar y cerrar un desvio que el mismo detecto SI NO fue quien realizo/cargo la correccion.
+- consultar correcciones sin permiso para verificar o cerrar como Auditor.
 No debe:
 - editar datos maestros de contratistas;
 - editar datos maestros del personal como tarea habitual;
 - corregir el mismo desvio que luego verifica.
 
-Cambiar la regla actual de independencia del desvio:
-La restriccion correcta es:
-QUIEN CORRIGE NO PUEDE VERIFICAR SU PROPIA CORRECCION.
-Quien detecto el desvio SI puede verificarlo si otra persona realizo la correccion.
+Regla canónica de independencia del desvio:
+Sólo un Responsable H&S autorizado puede verificar o cerrar.
+El creador del desvio y el autor de la correccion quedan excluidos.
+Quien detecto el desvio NO puede verificarlo ni cerrarlo; tampoco el autor de la correccion. La verificacion exige Responsable H&S autorizado.
 
 El auditor delegado puede crear una obra solamente si tiene delegacion/habilitacion explicita del Licenciado H&S responsable. Esa habilitacion debe ser trazable.
 
@@ -754,7 +754,7 @@ Antes de terminar:
 
 Crear o actualizar pruebas especificas para:
 - permisos por funcion/empresa;
-- auditor que detecta puede verificar si otro corrigio;
+- creador del desvio y autor de la correccion no pueden verificar; sólo Responsable H&S independiente;
 - tecnico no puede autoverificar;
 - revision documental separada;
 - obra nueva sin actores heredados;

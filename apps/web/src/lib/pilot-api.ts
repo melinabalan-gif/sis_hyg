@@ -1,3 +1,16 @@
+import type {
+  DocumentCreate,
+  DocumentVersionCreate,
+  DocumentReviewCreate,
+  WorksiteCreate,
+} from "../generated/api/types.gen";
+export type {
+  DocumentCreate,
+  DocumentVersionCreate,
+  DocumentReviewCreate,
+  WorksiteCreate,
+};
+
 export const PILOT_ACTORS = [
   {
     value: "tecnico",
@@ -37,6 +50,8 @@ export type PilotRole = (typeof PILOT_ACTORS)[number]["role"];
 export type Identifier = string;
 
 export interface WorksiteSummary {
+  created_by_actor_id?: Identifier | null;
+  address?: string | null;
   id: Identifier;
   code: string;
   name: string;
@@ -133,6 +148,7 @@ export interface PilotDocument {
 }
 
 export interface DocumentReview {
+  document_version_id?: string | null;
   id: Identifier;
   reviewer: Identifier;
   reviewer_function: string;
@@ -197,6 +213,8 @@ export interface AuditCatalogControl {
 }
 
 export interface Audit {
+  author_id?: Identifier;
+  editor_id?: Identifier;
   id: Identifier;
   status: string;
   started_at: string;
@@ -401,15 +419,19 @@ async function request<T>(
   return payload as T;
 }
 
-export function listWorksites(actor: PilotActor): Promise<WorksiteSummary[]> {
-  return request<WorksiteSummary[]>("/worksites", actor);
+export function listWorksites(
+  actor: PilotActor,
+  signal?: AbortSignal,
+): Promise<WorksiteSummary[]> {
+  return request<WorksiteSummary[]>("/worksites", actor, { signal });
 }
 
 export function getWorksite(
   id: Identifier,
   actor: PilotActor,
+  signal?: AbortSignal,
 ): Promise<WorksiteDetail> {
-  return request<WorksiteDetail>(`/worksites/${id}`, actor);
+  return request<WorksiteDetail>(`/worksites/${id}`, actor, { signal });
 }
 
 export function postPilot<T>(
@@ -421,6 +443,39 @@ export function postPilot<T>(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function createWorksite(
+  actor: PilotActor,
+  body: WorksiteCreate,
+): Promise<WorksiteSummary> {
+  return postPilot<WorksiteSummary>("/worksites", actor, body);
+}
+
+export function saveDocument(
+  worksiteId: string,
+  actor: PilotActor,
+  body: DocumentCreate | DocumentVersionCreate,
+  documentId?: string,
+): Promise<PilotDocument> {
+  return postPilot<PilotDocument>(
+    `/worksites/${worksiteId}/documents${documentId ? `/${documentId}/versions` : ""}`,
+    actor,
+    body,
+  );
+}
+
+export function reviewDocument(
+  worksiteId: string,
+  documentId: string,
+  actor: PilotActor,
+  body: DocumentReviewCreate,
+): Promise<PilotDocument> {
+  return postPilot<PilotDocument>(
+    `/worksites/${worksiteId}/documents/${documentId}/reviews`,
+    actor,
+    body,
+  );
 }
 
 export async function downloadWorksiteReport(

@@ -3425,7 +3425,7 @@ textarea {
 .rail-brand small {
   display: block;
   margin-top: 2px;
-  color: rgba(255,255,255,.52);
+  color: rgba(255, 255, 255, 0.52);
   font-size: 0.67rem;
   font-weight: 600;
 }
@@ -3433,7 +3433,7 @@ textarea {
 /* Superficies planas: sin ornamentos ni gradientes */
 .workspace-rail {
   background: var(--navy-950) !important;
-  border-right-color: rgba(170,225,211,.14) !important;
+  border-right-color: rgba(170, 225, 211, 0.14) !important;
 }
 
 .workspace-rail::after {

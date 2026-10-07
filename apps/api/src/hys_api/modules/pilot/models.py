@@ -690,6 +690,9 @@ class DocumentVersion(Base):
 
     __tablename__ = "document_versions"
     __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "document_id", "id", name="uq_document_versions_org_document_id"
+        ),
         UniqueConstraint("organization_id", "id", name="uq_document_versions_organization_id_id"),
         UniqueConstraint(
             "organization_id",
@@ -747,6 +750,20 @@ class DocumentReview(Base):
 
     __tablename__ = "document_reviews"
     __table_args__ = (
+        CheckConstraint(
+            "document_version_id IS NOT NULL",
+            name="version_required",
+            postgresql_not_valid=True,
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "document_id", "document_version_id"],
+            [
+                "document_versions.organization_id",
+                "document_versions.document_id",
+                "document_versions.id",
+            ],
+            name="fk_document_reviews_org_document_version",
+        ),
         UniqueConstraint("organization_id", "id", name="uq_document_reviews_organization_id_id"),
         ForeignKeyConstraint(
             ["organization_id", "document_id"],
@@ -769,6 +786,7 @@ class DocumentReview(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     organization_id: Mapped[UUID] = mapped_column(nullable=False)
     document_id: Mapped[UUID] = mapped_column(nullable=False)
+    document_version_id: Mapped[UUID | None] = mapped_column(nullable=True)
     reviewer_actor_id: Mapped[UUID] = mapped_column(nullable=False)
     reviewer_function: Mapped[str] = mapped_column(String(120), nullable=False)
     reviewed_at: Mapped[datetime] = mapped_column(

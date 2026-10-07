@@ -1,5 +1,15 @@
 # Política de privacidad y manejo de datos V1
 
+**Implementación del piloto (2026-10-07):** las primitivas y garantías descritas
+abajo son requisitos V1; no están todas implementadas. Se prohíben datos reales.
+El scanner heurístico actual inspecciona fuente/historial Git con salida
+redactada, pero no prueba ausencia absoluta de PII ni sustituye cifrado, DLP,
+revisión humana o configuración de términos protegidos. CSP permite inline de
+Next para el piloto; logs de acceso del proxy permanecen desactivados hasta
+verificar redacción. Backup lógico sintético no acredita backup externo cifrado,
+restauración de objetos ni DEC-006. Cobertura efectiva y gates abiertos se
+detallan en `../operations/calidad-y-operacion.md`.
+
 **Estado arquitectónico:** aprobado por la persona solicitante el 2026-09-02, con
 la aclaración criptográfica de este documento. La habilitación de datos reales
 continúa bloqueada hasta la aprobación formal de privacidad/seguridad y los gates

@@ -136,7 +136,9 @@ def test_expiry_window_is_exactly_thirty_days() -> None:
 
 def test_worksite_creation_requires_jurisdiction() -> None:
     with pytest.raises(ValidationError, match="jurisdiction"):
-        WorksiteCreate(code="SYN-OBRA-001", name="Obra Sintética Uno")
+        WorksiteCreate(
+            address="Synthetic test address", code="SYN-OBRA-001", name="Obra Sintética Uno"
+        )
 
 
 def test_worksite_stages_allow_simultaneous_intervals() -> None:

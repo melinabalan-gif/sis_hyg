@@ -25,6 +25,7 @@ const emptyMetrics = {
     by_status: {
       FALTANTE: 0,
       PENDIENTE: 0,
+      OBSERVADO: 0,
       RECHAZADO: 0,
       POR_VENCER: 0,
       VENCIDO: 0,
@@ -63,11 +64,40 @@ const emptyMetrics = {
 const detail = {
   ...worksite,
   stages: [],
-  contractors: [],
+  contractors: [
+    {
+      id: "12000000-0000-0000-0000-000000000001",
+      legal_name: "Contratista principal sintética",
+      trade: "Construcción",
+      participation_type: "PRINCIPAL",
+    },
+  ],
   people: [],
   documents: [],
   machines: [],
   functional_assignments: [
+    {
+      id: "11000000-0000-4000-8000-000000000002",
+      actor_id: "00000000-0000-4000-8000-000000000002",
+      actor_key: "tecnico",
+      actor_label: "Técnico",
+      function_code: "TECNICO_HYS_CONTRATISTA_PRINCIPAL",
+      represented_contractor_id: "12000000-0000-0000-0000-000000000001",
+      permission_scope: "WORKSITE",
+      valid_from: "2020-01-01",
+      valid_to: null,
+    },
+    {
+      id: "11000000-0000-4000-8000-000000000003",
+      actor_id: "00000000-0000-4000-8000-000000000003",
+      actor_key: "responsable",
+      actor_label: "Licenciado",
+      function_code: "RESPONSABLE_HYS_PROYECTO",
+      represented_contractor_id: null,
+      permission_scope: "WORKSITE",
+      valid_from: "2020-01-01",
+      valid_to: null,
+    },
     {
       id: "11000000-0000-4000-8000-000000000001",
       worksite_id: worksite.id,
@@ -120,7 +150,7 @@ const responsibilityDetail = {
   ],
   functional_assignments: [
     {
-      ...detail.functional_assignments[0],
+      ...detail.functional_assignments[2],
       id: "11000000-0000-0000-0000-000000000001",
       person_id: "13000000-0000-0000-0000-000000000002",
       person_name: "Técnico auditor",
@@ -128,7 +158,7 @@ const responsibilityDetail = {
       assigned_by_label: "Licenciada de proyecto",
     },
     {
-      ...detail.functional_assignments[0],
+      ...detail.functional_assignments[2],
       id: "11000000-0000-0000-0000-000000000002",
       actor_id: "00000000-0000-4000-8000-000000000003",
       actor_key: "responsable",
@@ -295,9 +325,7 @@ describe("HomePage", () => {
 
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
-    await user.click(
-      await screen.findByRole("tab", { name: /responsables/i }),
-    );
+    await user.click(await screen.findByRole("tab", { name: /responsables/i }));
 
     expect(
       screen.getByRole("heading", {
@@ -421,7 +449,8 @@ describe("HomePage", () => {
     ]) {
       expect(screen.getByText(label, { selector: "dt" })).toBeVisible();
     }
-    expect(screen.getAllByText("Sin especificar")).toHaveLength(2);
+    expect(screen.getAllByText("Sin especificar")).toHaveLength(1);
+    expect(screen.getAllByText("Técnico H&S")[0]).toBeVisible();
     expect(screen.getByText("Sin asignar")).toBeVisible();
     expect(screen.queryByLabelText("Auditor asignado")).not.toBeInTheDocument();
     expect(
@@ -492,14 +521,28 @@ describe("HomePage", () => {
   });
 
   it("permite cambiar la disponibilidad de servicios auxiliares al equipo H&S de la contratista principal", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
-        return jsonResponse(detail);
-      }
-      if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
-      throw new Error(`Ruta inesperada: ${path}`);
-    });
+    let saved: Record<string, unknown> | undefined;
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          saved = {
+            ...JSON.parse(String(init.body)),
+            id: "document-aux",
+            version: 1,
+            status: "PENDIENTE",
+            versions: [],
+            reviews: [],
+          };
+          return jsonResponse(saved, 201);
+        }
+        const path = String(input);
+        if (path.endsWith(`/api/v1/worksites/${worksite.id}`)) {
+          return jsonResponse({ ...detail, documents: saved ? [saved] : [] });
+        }
+        if (path.endsWith("/api/v1/worksites")) return jsonResponse([worksite]);
+        throw new Error(`Ruta inesperada: ${path}`);
+      },
+    );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
 
@@ -514,7 +557,15 @@ describe("HomePage", () => {
       name: "Baños: presencia o disponibilidad",
     });
     await user.click(within(bathrooms).getByRole("radio", { name: "Sí" }));
-    expect(within(bathrooms).getByRole("radio", { name: "Sí" })).toBeChecked();
+    await waitFor(() =>
+      expect(
+        within(
+          screen.getByRole("group", {
+            name: "Baños: presencia o disponibilidad",
+          }),
+        ).getByRole("radio", { name: "Sí" }),
+      ).toBeChecked(),
+    );
   });
 
   it("mantiene los servicios auxiliares en solo lectura para Auditor", async () => {
@@ -624,9 +675,7 @@ describe("HomePage", () => {
       screen.getByLabelText(/actuar como/i),
       "responsable",
     );
-    await user.click(
-      await screen.findByRole("tab", { name: /responsables/i }),
-    );
+    await user.click(await screen.findByRole("tab", { name: /responsables/i }));
     await user.click(screen.getByRole("button", { name: "Cambiar auditor" }));
 
     expect(screen.getByLabelText("Persona auditora")).toBeVisible();
@@ -678,8 +727,15 @@ describe("HomePage", () => {
       "responsable",
     );
     await screen.findByText(/creá o abrí una obra/i);
-    await user.type(screen.getByLabelText("Nombre de fantasía"), "Obra Piloto Norte");
+    await user.type(
+      screen.getByLabelText("Nombre de fantasía"),
+      "Obra Piloto Norte",
+    );
     await user.type(screen.getByLabelText("Dirección"), "Ayacucho 1250");
+    await user.type(
+      screen.getByLabelText("Jurisdicción"),
+      "Provincia sintética",
+    );
     await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     expect(
@@ -761,9 +817,7 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("button", { name: /documentación/i }),
     ).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: /documentación/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /documentación/i }));
 
     expect(
       await screen.findByRole("heading", { name: /legajos técnicos/i }),
@@ -795,14 +849,20 @@ describe("HomePage", () => {
       "responsable",
     );
     await screen.findByText(/creá o abrí una obra/i);
-await user.type(screen.getByLabelText("Nombre de fantasía"), "Duplicada");
+    await user.type(screen.getByLabelText("Nombre de fantasía"), "Duplicada");
     await user.type(screen.getByLabelText("Dirección"), "Ayacucho 1250");
-await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
+    await user.type(
+      screen.getByLabelText("Jurisdicción"),
+      "Provincia sintética",
+    );
+    await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     expect(await screen.findByText(/el código ya existe/i)).toHaveClass(
       "message--error",
     );
-    expect(screen.getByLabelText("Nombre de fantasía")).toHaveValue("Duplicada");
+    expect(screen.getByLabelText("Nombre de fantasía")).toHaveValue(
+      "Duplicada",
+    );
     expect(screen.getByLabelText("Dirección")).toHaveValue("Ayacucho 1250");
     await waitFor(() =>
       expect(
@@ -828,6 +888,9 @@ await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
         {
           id: auditId,
           status: "EN_CURSO",
+          author_id: "00000000-0000-4000-8000-000000000001",
+          editor_id: "00000000-0000-4000-8000-000000000001",
+          auditor_assignment_id: "11000000-0000-4000-8000-000000000001",
           started_at: "2026-09-03T15:00:00Z",
           finalized_at: null,
           available_controls: catalog,
@@ -866,9 +929,7 @@ await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
     await user.selectOptions(screen.getByLabelText(/actuar como/i), "auditor");
-    await user.click(
-      await screen.findByRole("tab", { name: /auditoría/i }),
-    );
+    await user.click(await screen.findByRole("tab", { name: /auditoría/i }));
 
     expect(screen.getByText("Circulación sintética")).toBeVisible();
     expect(screen.getByText("EPP sintético")).toBeVisible();
@@ -1131,9 +1192,7 @@ await user.click(screen.getByRole("button", { name: /crear y abrir/i }));
 
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /obr-001/i }));
-    await user.click(
-      await screen.findByRole("tab", { name: /maquinarias/i }),
-    );
+    await user.click(await screen.findByRole("tab", { name: /maquinarias/i }));
 
     expect(
       screen.getByText("Versión 1 · Última inspección registrada"),

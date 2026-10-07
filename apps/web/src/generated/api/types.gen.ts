@@ -38,6 +38,14 @@ export type AuditControlCreate = {
    * Reason
    */
   reason?: string | null;
+  /**
+   * Responsible Contractor Id
+   */
+  responsible_contractor_id?: string | null;
+  /**
+   * Responsible Person Id
+   */
+  responsible_person_id?: string | null;
   result: ControlResult;
   /**
    * Severity Code
@@ -381,6 +389,10 @@ export type DocumentMetrics = {
  */
 export type DocumentReviewCreate = {
   /**
+   * Document Version Id
+   */
+  document_version_id: string;
+  /**
    * Foundation
    */
   foundation: string;
@@ -400,6 +412,10 @@ export type DocumentReviewStatus =
  * DocumentReviewView
  */
 export type DocumentReviewView = {
+  /**
+   * Document Version Id
+   */
+  document_version_id?: string | null;
   /**
    * Foundation
    */
@@ -686,6 +702,22 @@ export type FindingView = {
    */
   overdue: boolean;
   /**
+   * Responsible Contractor Id
+   */
+  responsible_contractor_id?: string | null;
+  /**
+   * Responsible Contractor Name
+   */
+  responsible_contractor_name?: string | null;
+  /**
+   * Responsible Person Id
+   */
+  responsible_person_id?: string | null;
+  /**
+   * Responsible Person Name
+   */
+  responsible_person_name?: string | null;
+  /**
    * Severity Code
    */
   severity_code: string;
@@ -753,6 +785,24 @@ export type LiveResponse = {
 };
 
 /**
+ * MachineChecklistKey
+ */
+export type MachineChecklistKey =
+  | "brakes"
+  | "lights"
+  | "reverse_alarm"
+  | "horn"
+  | "tires"
+  | "mirrors"
+  | "seat_belt"
+  | "fire_extinguisher"
+  | "warning_lights"
+  | "leaks"
+  | "guards"
+  | "signage"
+  | "specific_devices";
+
+/**
  * MachineChecklistResult
  */
 export type MachineChecklistResult =
@@ -803,14 +853,10 @@ export type MachineCreate = {
    */
   owner_contractor_id?: string | null;
   /**
-   * Reason
-   */
-  reason: string;
-  /**
    * Started On
    */
   started_on?: string | null;
-  status: MachineStatus;
+  status?: MachineStatus;
 };
 
 /**
@@ -820,8 +866,8 @@ export type MachineInspectionCreate = {
   /**
    * Checklist
    */
-  checklist?: {
-    [key: string]: MachineChecklistResult;
+  checklist: {
+    [key in MachineChecklistKey]?: MachineChecklistResult;
   };
   /**
    * Evidence Note
@@ -964,11 +1010,11 @@ export type MachineView = {
   /**
    * Inspected At
    */
-  inspected_at: string;
+  inspected_at: string | null;
   /**
    * Inspection Reason
    */
-  inspection_reason: string;
+  inspection_reason: string | null;
   /**
    * Inspections
    */
@@ -1016,7 +1062,7 @@ export type PersonCreate = {
   /**
    * Contractor Id
    */
-  contractor_id: string;
+  contractor_id?: string | null;
   /**
    * Display Name
    */
@@ -1071,7 +1117,7 @@ export type PersonView = {
   /**
    * Contractor Id
    */
-  contractor_id: string;
+  contractor_id: string | null;
   /**
    * Display Name
    */
@@ -1154,6 +1200,14 @@ export type UnregisteredPersonFindingCreate = {
    */
   description: string;
   /**
+   * Responsible Contractor Id
+   */
+  responsible_contractor_id?: string | null;
+  /**
+   * Responsible Person Id
+   */
+  responsible_person_id?: string | null;
+  /**
    * Severity Code
    */
   severity_code?: string;
@@ -1203,9 +1257,13 @@ export type VerificationView = {
  */
 export type WorksiteCreate = {
   /**
+   * Address
+   */
+  address: string;
+  /**
    * Code
    */
-  code: string;
+  code?: string | null;
   /**
    * Country
    */
@@ -1233,6 +1291,10 @@ export type WorksiteCreate = {
  */
 export type WorksiteDetail = {
   /**
+   * Address
+   */
+  address?: string | null;
+  /**
    * Audits
    */
   audits?: Array<AuditView>;
@@ -1252,6 +1314,10 @@ export type WorksiteDetail = {
    * Created At
    */
   created_at: string;
+  /**
+   * Created By Actor Id
+   */
+  created_by_actor_id?: string | null;
   /**
    * Documents
    */
@@ -1312,6 +1378,30 @@ export type WorksiteDetail = {
 };
 
 /**
+ * WorksiteFunctionalAssignmentChange
+ *
+ * Replacement data; the existing function and company remain immutable.
+ */
+export type WorksiteFunctionalAssignmentChange = {
+  /**
+   * Actor Id
+   */
+  actor_id: string;
+  /**
+   * Delegated By Assignment Id
+   */
+  delegated_by_assignment_id?: string | null;
+  /**
+   * Person Id
+   */
+  person_id: string;
+  /**
+   * Valid From
+   */
+  valid_from?: string | null;
+};
+
+/**
  * WorksiteFunctionalAssignmentCreate
  */
 export type WorksiteFunctionalAssignmentCreate = {
@@ -1344,6 +1434,16 @@ export type WorksiteFunctionalAssignmentCreate = {
 };
 
 /**
+ * WorksiteFunctionalAssignmentFinish
+ */
+export type WorksiteFunctionalAssignmentFinish = {
+  /**
+   * Valid To
+   */
+  valid_to?: string | null;
+};
+
+/**
  * WorksiteFunctionalAssignmentView
  */
 export type WorksiteFunctionalAssignmentView = {
@@ -1359,6 +1459,14 @@ export type WorksiteFunctionalAssignmentView = {
    * Actor Label
    */
   actor_label: string;
+  /**
+   * Assigned By Actor Id
+   */
+  assigned_by_actor_id?: string | null;
+  /**
+   * Assigned By Label
+   */
+  assigned_by_label?: string | null;
   /**
    * Delegated By Assignment Id
    */
@@ -1560,6 +1668,10 @@ export type WorksiteStageView = {
  */
 export type WorksiteSummary = {
   /**
+   * Address
+   */
+  address?: string | null;
+  /**
    * Code
    */
   code: string;
@@ -1571,6 +1683,10 @@ export type WorksiteSummary = {
    * Created At
    */
   created_at: string;
+  /**
+   * Created By Actor Id
+   */
+  created_by_actor_id?: string | null;
   /**
    * Id
    */
@@ -7393,6 +7509,605 @@ export type PilotCreateWorksiteFunctionalAssignmentResponses = {
 
 export type PilotCreateWorksiteFunctionalAssignmentResponse =
   PilotCreateWorksiteFunctionalAssignmentResponses[keyof PilotCreateWorksiteFunctionalAssignmentResponses];
+
+export type PilotChangeWorksiteFunctionalAssignmentData = {
+  body: WorksiteFunctionalAssignmentChange;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+    /**
+     * Assignment Id
+     */
+    assignment_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/functional-assignments/{assignment_id}/change";
+};
+
+export type PilotChangeWorksiteFunctionalAssignmentErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotChangeWorksiteFunctionalAssignmentError =
+  PilotChangeWorksiteFunctionalAssignmentErrors[keyof PilotChangeWorksiteFunctionalAssignmentErrors];
+
+export type PilotChangeWorksiteFunctionalAssignmentResponses = {
+  /**
+   * Successful Response
+   */
+  200: WorksiteFunctionalAssignmentView;
+};
+
+export type PilotChangeWorksiteFunctionalAssignmentResponse =
+  PilotChangeWorksiteFunctionalAssignmentResponses[keyof PilotChangeWorksiteFunctionalAssignmentResponses];
+
+export type PilotFinishWorksiteFunctionalAssignmentData = {
+  /**
+   * Payload
+   */
+  body?: WorksiteFunctionalAssignmentFinish | null;
+  headers?: {
+    /**
+     * X-Pilot-Actor
+     */
+    "X-Pilot-Actor"?: string | null;
+  };
+  path: {
+    /**
+     * Worksite Id
+     */
+    worksite_id: string;
+    /**
+     * Assignment Id
+     */
+    assignment_id: string;
+  };
+  query?: never;
+  url: "/api/v1/worksites/{worksite_id}/functional-assignments/{assignment_id}/finish";
+};
+
+export type PilotFinishWorksiteFunctionalAssignmentErrors = {
+  /**
+   * ProblemDetails
+   *
+   * Actor sintético ausente o inválido
+   */
+  401: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * El rol del piloto no permite la acción
+   */
+  403: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Recurso no visible
+   */
+  404: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Estado, duplicado o segregación de funciones
+   */
+  409: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+  /**
+   * ProblemDetails
+   *
+   * Solicitud inválida
+   */
+  422: {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Errors
+     */
+    errors?: Array<{
+      /**
+       * Code
+       */
+      code: string;
+      /**
+       * Location
+       */
+      location: Array<string | number>;
+      /**
+       * Message
+       */
+      message: string;
+    }>;
+    /**
+     * Instance
+     */
+    instance: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+  };
+};
+
+export type PilotFinishWorksiteFunctionalAssignmentError =
+  PilotFinishWorksiteFunctionalAssignmentErrors[keyof PilotFinishWorksiteFunctionalAssignmentErrors];
+
+export type PilotFinishWorksiteFunctionalAssignmentResponses = {
+  /**
+   * Successful Response
+   */
+  200: WorksiteFunctionalAssignmentView;
+};
+
+export type PilotFinishWorksiteFunctionalAssignmentResponse =
+  PilotFinishWorksiteFunctionalAssignmentResponses[keyof PilotFinishWorksiteFunctionalAssignmentResponses];
 
 export type PilotCreateWorksiteMachineData = {
   body: MachineCreate;

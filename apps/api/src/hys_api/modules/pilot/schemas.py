@@ -1,14 +1,28 @@
 """Schemas HTTP estrictos del primer flujo vertical del piloto."""
 
+import json
+import math
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+Text120 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+Text100 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+Text160 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+LicensePlate = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32)]
 LongText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 Code = Annotated[
     str,
@@ -139,14 +153,23 @@ class WorksiteCreate(StrictSchema):
     code: Code | None = None
     name: ShortText
     address: ShortText
-    country: ShortText | None = None
-    province: ShortText | None = None
-    municipality: ShortText | None = None
+    country: Text120 | None = None
+    province: Text120 | None = None
+    municipality: Text120 | None = None
     jurisdiction: ShortText | None = None
 
+    @model_validator(mode="after")
+    def validate_jurisdiction(self) -> Self:
+        if all(value is not None for value in (self.country, self.province, self.municipality)):
+            return self
+        if self.jurisdiction is not None:
+            return self
+        raise ValueError("jurisdiction o country, province y municipality son obligatorios")
 
 
 class WorksiteSummary(StrictSchema):
+    created_by_actor_id: UUID | None = None
+    address: str | None = None
     id: UUID
     code: str
     name: str
@@ -174,7 +197,7 @@ class DatedAssignmentCreate(StrictSchema):
 
 class ContractorCreate(DatedAssignmentCreate):
     legal_name: ShortText
-    trade: ShortText
+    trade: Text120
     participation_type: ContractorParticipationType | None = None
     parent_contracting_company_id: UUID | None = None
 
@@ -194,7 +217,7 @@ class ContractorView(StrictSchema):
 class PersonCreate(DatedAssignmentCreate):
     display_name: ShortText
     contractor_id: UUID | None = None
-    role_label: ShortText = "Personal"
+    role_label: Text120 = "Personal"
     profession_code: ProfessionCode = ProfessionCode.OTRA
 
 
@@ -215,7 +238,7 @@ class PersonView(StrictSchema):
 
 class PersonVerificationCreate(StrictSchema):
     status: PersonHabilitationStatus
-    function_label: ShortText
+    function_label: Text160
     observation: LongText | None = None
 
 
@@ -228,11 +251,43 @@ class PersonVerificationView(StrictSchema):
     observation: str | None
 
 
+def validate_technical_metadata_notes(notes: str | None) -> str | None:
+    """Validate marked metadata without changing legacy human notes or unknown keys."""
+    if notes is None:
+        return notes
+    try:
+        metadata = json.loads(notes)
+    except ValueError, TypeError:
+        return notes
+    if not isinstance(metadata, dict) or metadata.get("schema") != "hys.technical_metadata.v1":
+        return notes
+    if not isinstance(metadata.get("detail", ""), str):
+        raise ValueError("technical metadata detail must be text")
+    if "available" in metadata and not isinstance(metadata["available"], bool):
+        raise ValueError("technical metadata available must be boolean")
+    if "weekly_hours" in metadata:
+        hours = metadata["weekly_hours"]
+        if (
+            isinstance(hours, bool)
+            or not isinstance(hours, (int, float))
+            or not math.isfinite(hours)
+            or not 1 <= hours <= 168
+            or hours * 2 != int(hours * 2)
+        ):
+            raise ValueError("weekly_hours must be between 1 and 168 in half-hour increments")
+    if metadata.get("auditor_assignment_id") is not None:
+        if not isinstance(metadata["auditor_assignment_id"], str):
+            raise ValueError("auditor_assignment_id must be a UUID string")
+        UUID(metadata["auditor_assignment_id"])
+    return notes
+
+
 class DocumentCreate(StrictSchema):
+    _validate_metadata = field_validator("notes")(validate_technical_metadata_notes)
     subject_kind: SubjectKind
     subject_id: UUID
     title: ShortText
-    document_type: ShortText
+    document_type: Text100
     review_status: DocumentReviewStatus = DocumentReviewStatus.PENDIENTE
     valid_from: date | None = None
     expires_on: date | None = None
@@ -247,8 +302,9 @@ class DocumentCreate(StrictSchema):
 
 
 class DocumentVersionCreate(StrictSchema):
+    _validate_metadata = field_validator("notes")(validate_technical_metadata_notes)
     title: ShortText
-    document_type: ShortText
+    document_type: Text100
     review_status: DocumentReviewStatus = DocumentReviewStatus.PENDIENTE
     valid_from: date | None = None
     expires_on: date | None = None
@@ -296,11 +352,13 @@ class DocumentView(StrictSchema):
 
 
 class DocumentReviewCreate(StrictSchema):
+    document_version_id: UUID
     result: Literal["APROBADO", "OBSERVADO", "RECHAZADO"]
     foundation: LongText
 
 
 class DocumentReviewView(StrictSchema):
+    document_version_id: UUID | None = None
     id: UUID
     reviewer: UUID
     reviewer_function: str
@@ -314,10 +372,10 @@ class MachineCreate(DatedAssignmentCreate):
     description: ShortText
     status: MachineStatus = MachineStatus.OPERATIVA
     contractor_id: UUID | None = None
-    machine_type: ShortText | None = None
-    brand: ShortText | None = None
-    model: ShortText | None = None
-    license_plate: ShortText | None = None
+    machine_type: Text120 | None = None
+    brand: Text120 | None = None
+    model: Text120 | None = None
+    license_plate: LicensePlate | None = None
     owner_contractor_id: UUID | None = None
     operator_person_id: UUID | None = None
 
@@ -589,7 +647,7 @@ class WorksiteStageCreate(StrictSchema):
     name: ShortText
     started_on: date
     ended_on: date | None = None
-    sector: ShortText | None = None
+    sector: Text120 | None = None
     notes: LongText | None = None
 
     @model_validator(mode="after")
@@ -617,7 +675,7 @@ class WorksiteStageView(StrictSchema):
 class WorksiteStageUpdate(StrictSchema):
     name: ShortText | None = None
     ended_on: date | None = None
-    sector: ShortText | None = None
+    sector: Text120 | None = None
     notes: LongText | None = None
     status: Literal["PLANIFICADA", "ACTIVA", "CERRADA"] | None = None
 

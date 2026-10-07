@@ -4,6 +4,9 @@ set -eu
 base_url="${HYS_SMOKE_BASE_URL:-https://localhost}"
 curl_flags="--fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors --connect-timeout 3 --max-time 10"
 if [ "${HYS_SMOKE_INSECURE_LOCAL_TLS:-0}" = "1" ]; then
+  echo "$base_url" | grep -Eq '^https://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?/?$' || {
+    echo "Certificate bypass requires HTTPS loopback" >&2; exit 1;
+  }
   curl_flags="$curl_flags --insecure"
 fi
 
@@ -19,11 +22,14 @@ test "$(docker compose ps -a --format json migrate | grep -c '"ExitCode":0')" -g
 
 for private_endpoint in "db 5432" "seaweedfs 8333" "seaweedfs 8888" "seaweedfs 9333" "clamav 3310"; do
   set -- $private_endpoint
-  for container_id in $(docker compose ps -q "$1"); do
-    if docker port "$container_id" "$2/tcp" 2>/dev/null | grep -q .; then
-      echo "$1:$2 no debe publicarse en el host" >&2
-      exit 1
-    fi
+  containers=$(docker compose ps -q "$1")
+  test -n "$containers" || { echo "Private service unavailable" >&2; exit 1; }
+  for container_id in $containers; do
+    published=$(docker inspect --format '{{json (index .NetworkSettings.Ports "'"$2"'/tcp")}}' "$container_id")
+    case "$published" in
+      null|'[]') ;;
+      *) echo "$1:$2 no debe publicarse en el host o inspección inválida" >&2; exit 1 ;;
+    esac
   done
 done
 

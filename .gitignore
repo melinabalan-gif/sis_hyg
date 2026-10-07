@@ -37,4 +37,5 @@ reports/
 
 # Local toolchains
 .tools/
-
+apps/web/test-results/
+apps/web/playwright-report/

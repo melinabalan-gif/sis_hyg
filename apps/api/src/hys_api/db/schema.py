@@ -1,3 +1,3 @@
-"""Contrato entre la versión de la aplicación y Alembic."""
+"""Compatibility contract between the application and Alembic."""
 
-EXPECTED_SCHEMA_REVISION = "20261001_0011"
+EXPECTED_SCHEMA_REVISION = "20261006_0012"
